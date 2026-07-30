@@ -1,0 +1,2068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WWII Causal Atlas — Watch &amp; Explore</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+  :root{
+    --bg: #0B0A08; --bg-2: #131110; --bg-3: #191612; --grain-op: 0.05;
+    --ink: #EDE6D6; --ink-dim: #9C9484; --ink-faint: #5C564A;
+    --amber: #D9A24C; --amber-dim: #8C6B33; --red: #A8332B; --line: #2A251E;
+    --c-origins:#8A7CA8; --c-europe:#4C86A8; --c-eastern:#B3453D;
+    --c-pacific:#3A8F7B; --c-china:#8A9A4C; --c-africa:#C9A227;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  html,body{height:100%;}
+  body{background:var(--bg); color:var(--ink); font-family:'Source Serif 4',serif;}
+  body.mode-watch{ overflow-y:auto; overflow-x:hidden; }
+  body.mode-explore{ overflow:hidden; }
+  body::before{ content:''; position:fixed; inset:0; pointer-events:none; z-index:500; opacity:var(--grain-op); mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  body::after{ content:''; position:fixed; inset:0; pointer-events:none; z-index:499; background:radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%); }
+  a{color:var(--amber);}
+
+  nav{ position:fixed; top:0; left:0; right:0; z-index:300; height:58px; display:flex; justify-content:space-between; align-items:center;
+    padding:0 24px; background:rgba(11,10,8,0.88); backdrop-filter:blur(6px); border-bottom:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1.5px; text-transform:uppercase; }
+  nav .brand{color:var(--ink-dim);}
+  nav .brand strong{color:var(--amber); font-weight:600;}
+  nav .nav-right{display:flex; align-items:center; gap:18px;}
+  nav .nav-refs{color:var(--ink-dim); text-decoration:none; letter-spacing:1.5px;}
+  nav .nav-refs:hover, nav .nav-refs:focus-visible{color:var(--amber);}
+  nav .mode-toggle{display:flex; gap:2px; border:1px solid var(--line); border-radius:3px; overflow:hidden;}
+  nav .mode-toggle button{ background:var(--bg-2); color:var(--ink-dim); border:none; padding:8px 16px; cursor:pointer;
+    font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; }
+  nav .mode-toggle button.active{background:var(--amber); color:#1a1408;}
+
+  .progress-rail{ position:fixed; left:0; top:58px; bottom:0; width:30px; z-index:150; display:flex; flex-direction:column; align-items:center; padding:40px 0 20px; }
+  body.mode-explore .progress-rail{ display:none; }
+  .progress-rail .track{position:relative; width:2px; flex:1; background:var(--line);}
+  .progress-rail .fill{position:absolute; top:0; left:0; width:100%; background:var(--amber); height:0%; transition:height .1s linear;}
+  @media (max-width:720px){ .progress-rail{display:none;} }
+
+  /* ===== WATCH MODE ===== */
+  #watchRoot{ padding-top:58px; }
+  body.mode-explore #watchRoot{ display:none; }
+
+  .hero{ min-height:calc(100vh - 58px); display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; padding:40px 20px; position:relative; }
+  .hero:not(:first-child){ border-top:1px solid var(--line); }
+  .filmstrip-edge{ position:absolute; left:0; right:0; height:16px; display:flex; justify-content:space-evenly; align-items:center; }
+  .filmstrip-edge.top{top:0;} .filmstrip-edge.bottom{bottom:0;}
+  .filmstrip-edge i{width:9px; height:9px; background:var(--bg-2); border:1px solid var(--line); border-radius:1px;}
+  .reel-label{ font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:4px; text-transform:uppercase; color:var(--amber-dim); margin-bottom:22px; }
+  .hero h1{ font-family:'Bebas Neue',sans-serif; font-size:clamp(48px,10vw,116px); line-height:0.95; letter-spacing:2px; color:var(--ink); text-shadow:0 0 40px rgba(217,162,76,0.15); }
+  .hero .years{ font-family:'IBM Plex Mono',monospace; font-size:14px; letter-spacing:3px; color:var(--ink-dim); margin-top:18px; }
+  .hero .dek{ max-width:540px; margin:28px auto 0; font-size:16px; line-height:1.7; color:var(--ink-dim); font-style:italic; }
+  .scroll-cue{ margin-top:56px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--ink-faint); display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .scroll-cue .arrow{width:1px; height:34px; background:linear-gradient(var(--ink-faint), transparent); animation:pulse-down 1.8s ease-in-out infinite;}
+  @keyframes pulse-down{0%,100%{opacity:.3;} 50%{opacity:1;}}
+  @media (prefers-reduced-motion: reduce){ .scroll-cue .arrow{animation:none;} }
+
+  .act-intro{ max-width:640px; margin:0 auto; padding:110px 24px 70px; text-align:center; }
+  .act-intro .eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color:var(--amber-dim); margin-bottom:16px; }
+  .act-intro p{font-size:19px; line-height:1.85; color:var(--ink-dim);}
+  .act-intro p strong{color:var(--ink); font-weight:600;}
+
+  .reel{ padding:20px 0 60px; }
+  .event{ display:grid; grid-template-columns:1fr 1fr; gap:0; align-items:center; max-width:1080px; margin:0 auto; padding:90px 28px;
+    opacity:0; transform:translateY(36px); transition:opacity .8s ease, transform .8s ease; }
+  .event.visible{ opacity:1; transform:translateY(0); }
+  .event.reverse{ direction:rtl; } .event.reverse > *{ direction:ltr; }
+  @media (max-width:820px){ .event{ grid-template-columns:1fr; text-align:center; padding:56px 20px; } .event.reverse{ direction:ltr; } }
+
+  .event-art{ display:flex; justify-content:center; align-items:center; padding:20px; }
+  .event-art svg{ width:min(200px,68%); height:auto; filter:drop-shadow(0 0 24px rgba(217,162,76,0.12)); }
+  .event-art svg .stroke{ fill:none; stroke:var(--amber); stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }
+  .event-art svg .fill{ fill:var(--amber); opacity:.85; }
+  .event-art svg .dim{ stroke:var(--ink-faint); }
+
+  .event-copy{ padding:18px 30px; }
+  .reel-meta{ display:flex; align-items:center; gap:14px; margin-bottom:14px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase; color:var(--ink-faint); }
+  .event.reverse .reel-meta{ justify-content:flex-end; }
+  @media (max-width:820px){ .reel-meta, .event.reverse .reel-meta{ justify-content:center; } }
+  .reel-meta .frame{ color:var(--amber-dim); }
+  .reel-meta .dot{ width:3px; height:3px; background:var(--ink-faint); border-radius:50%; }
+  .theater-tag{ padding:2px 8px; border:1px solid var(--line); border-radius:2px; }
+  .event-copy h2{ font-family:'Bebas Neue',sans-serif; font-size:clamp(26px,4vw,38px); letter-spacing:1px; line-height:1.05; color:var(--ink); margin-bottom:14px; }
+  .event-copy .date-stamp{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--amber); letter-spacing:1px; margin-bottom:16px; display:block; }
+  .event-copy .caption{ font-size:16px; line-height:1.75; color:var(--ink-dim); }
+
+  .btn-row{ display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
+  .event.reverse .btn-row{ justify-content:flex-end; }
+  @media (max-width:820px){ .event.reverse .btn-row{ justify-content:center; } }
+  .read-more-btn, .view-network-btn{ background:none; border:1px solid var(--line); color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.5px; text-transform:uppercase;
+    padding:8px 14px; border-radius:2px; cursor:pointer; transition:border-color .2s, color .2s; text-decoration:none; }
+  .read-more-btn:hover, .read-more-btn:focus-visible, .view-network-btn:hover{ border-color:var(--amber-dim); color:var(--amber); }
+  .detail{ max-height:0; overflow:hidden; transition:max-height .5s ease; font-size:14.5px; line-height:1.75; color:var(--ink-dim);
+    border-left:2px solid var(--amber-dim); padding-left:0; margin-top:0; }
+  .detail.open{ max-height:1600px; padding-left:16px; margin-top:16px; }
+  .event.reverse .detail{ border-left:none; border-right:2px solid var(--amber-dim); padding-right:0; }
+  .event.reverse .detail.open{ padding-right:16px; padding-left:0; }
+  @media (max-width:820px){ .detail, .event.reverse .detail{ border-left:2px solid var(--amber-dim); border-right:none; padding-right:0; } .detail.open{ padding-left:16px; } }
+
+  /* ---- sources & citations (shared by both modes) ---- */
+  .src-block{ margin-top:18px; padding-top:14px; border-top:1px solid var(--line); }
+  .src-head{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:1.6px;
+    text-transform:uppercase; color:var(--ink-faint); margin-bottom:8px; }
+  .src-list{ list-style:none; margin:0 0 10px; padding:0; }
+  .src-list li{ margin-bottom:7px; line-height:1.5; }
+  .src-link{ font-family:'Inter',sans-serif; font-size:12.5px; color:var(--amber);
+    text-decoration:none; border-bottom:1px solid var(--amber-dim); }
+  .src-link:hover, .src-link:focus-visible{ color:#EDC078; border-bottom-color:#EDC078; }
+  .src-pub{ display:block; font-family:'Inter',sans-serif; font-size:11px; color:var(--ink-faint); margin-top:2px; }
+  .src-kind{ display:inline-block; margin-top:3px; font-family:'IBM Plex Mono',monospace;
+    font-size:8.5px; letter-spacing:1px; text-transform:uppercase; padding:1px 6px;
+    border:1px solid var(--line); border-radius:2px; color:var(--ink-faint); }
+  .src-kind[data-kind="primary"]{ color:var(--amber-dim); border-color:var(--amber-dim); }
+  .src-kind[data-kind="institution"]{ color:#6E93A8; border-color:#3C5766; }
+  .src-kind[data-kind="scholarship"]{ color:#8A7CA8; border-color:#4B4260; }
+  .src-note{ background:rgba(168,51,43,0.07); border-left:2px solid var(--red);
+    padding:11px 13px; margin-bottom:14px; border-radius:0 2px 2px 0; }
+  .src-note-label{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:1.2px;
+    text-transform:uppercase; color:#C4635A; margin-bottom:6px; }
+  .src-note p{ font-size:13px; line-height:1.6; color:var(--ink-dim); margin-bottom:9px; }
+  .src-all{ display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:9.5px;
+    letter-spacing:1.2px; text-transform:uppercase; color:var(--ink-faint); text-decoration:none; }
+  .src-all:hover{ color:var(--amber); }
+  #detail-panel .src-block{ margin-top:14px; }
+  #detail-panel .src-note p{ font-size:12px; }
+
+  .link-connector{ max-width:1080px; margin:0 auto; padding:0 28px; display:flex; justify-content:center; opacity:0; transition:opacity .8s ease .2s; }
+  .link-connector.visible{ opacity:1; }
+  .link-connector .pill{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:1px; color:var(--amber-dim); border:1px dashed var(--line); padding:7px 16px; border-radius:20px; display:flex; align-items:center; gap:8px; }
+  .link-connector .pill .arrow-down{ color:var(--amber); }
+
+  .reel-transition{ max-width:640px; margin:0 auto; padding:70px 24px; text-align:center; border-top:1px solid var(--line); }
+  .reel-transition .eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:2.5px; text-transform:uppercase; color:var(--ink-faint); margin-bottom:12px; }
+  .reel-transition h4{ font-family:'Bebas Neue',sans-serif; font-size:clamp(22px,4vw,30px); color:var(--ink-dim); letter-spacing:1px; }
+
+  .recap{ max-width:1080px; margin:0 auto; padding:60px 28px 160px; }
+  .recap .eyebrow{ text-align:center; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:2.5px; text-transform:uppercase; color:var(--amber-dim); margin-bottom:30px; }
+  .recap .recap-title{ text-align:center; font-family:'Bebas Neue',sans-serif; font-size:clamp(36px,7vw,64px); color:var(--ink); margin-bottom:16px; }
+  .recap .recap-sub{ text-align:center; color:var(--ink-dim); max-width:600px; margin:0 auto 40px; font-size:15px; line-height:1.7; }
+  .filmstrip{ display:flex; gap:10px; overflow-x:auto; padding:20px 6px 30px; scrollbar-width:thin; }
+  .filmstrip::-webkit-scrollbar{ height:6px; }
+  .filmstrip::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
+  .frame-card{ flex:0 0 170px; background:var(--bg-2); border:1px solid var(--line); border-radius:3px; padding:14px; cursor:pointer; transition:border-color .2s, transform .2s; }
+  .frame-card:hover{ border-color:var(--amber-dim); transform:translateY(-3px); }
+  .frame-card .fc-date{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--amber-dim); margin-bottom:6px; }
+  .frame-card .fc-title{ font-family:'Source Serif 4',serif; font-weight:600; font-size:13px; line-height:1.35; color:var(--ink); }
+  .next-act{ text-align:center; margin-top:60px; padding-top:50px; border-top:1px solid var(--line); }
+  .next-act .cta{ display:inline-block; margin-top:20px; font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--amber);
+    border:1px solid var(--amber-dim); padding:12px 22px; border-radius:2px; text-decoration:none; cursor:pointer; background:none; }
+  .next-act .cta:hover{ background:var(--amber); color:#1a1408; }
+  .next-act p{ color:var(--ink-dim); font-size:14px; max-width:460px; margin:14px auto 0; }
+
+  /* ===== EXPLORE MODE ===== */
+  #exploreRoot{ display:none; position:fixed; top:58px; left:0; right:0; bottom:0; z-index:100; grid-template-columns:220px 1fr 300px; grid-template-rows:1fr auto; }
+  body.mode-explore #exploreRoot{ display:grid; }
+  @media (max-width:880px){
+    #exploreRoot{ grid-template-columns:1fr; grid-template-rows:auto 1fr auto auto; }
+    #exploreRoot .ex-filters{ order:1; border-right:none; border-bottom:1px solid var(--line); max-height:26vh; }
+    #exploreRoot .ex-main{ order:2; }
+    #exploreRoot .ex-detail{ order:3; border-left:none; border-top:1px solid var(--line); max-height:32vh; }
+    #exploreRoot .ex-timeline{ order:4; grid-column:1; }
+  }
+  .ex-filters{ grid-row:1; border-right:1px solid var(--line); background:var(--bg-2); padding:14px; overflow-y:auto; font-family:'Inter',sans-serif; }
+  .ex-filters h2, .ex-detail h2{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--ink-dim); margin:0 0 10px; }
+  /* ---- layout toggle + map basemap ---- */
+  .layout-toggle{ display:flex; gap:2px; border:1px solid var(--line); border-radius:3px; overflow:hidden; margin-bottom:9px; }
+  .layout-toggle button{ flex:1; background:var(--bg-3); color:var(--ink-dim); border:none; padding:7px 4px; cursor:pointer;
+    font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:1.2px; text-transform:uppercase; }
+  .layout-toggle button.active{ background:var(--amber); color:#1a1408; }
+  .layout-hint{ font-size:11.5px; line-height:1.5; color:var(--ink-faint); margin-bottom:18px; }
+  .land-layer path{ fill:#171410; stroke:#312A22; stroke-width:0.6; }
+  .graticule-layer path{ fill:none; stroke:#221E19; stroke-width:0.5; }
+  .geo-stem{ stroke:var(--ink-faint); stroke-width:0.6; stroke-dasharray:1.5 1.5; opacity:0.55; }
+  .node-approx{ stroke-dasharray:2.5 2.2; }
+  /* On the map, 54 labels over Europe is an unreadable pile. Show them on
+     hover and selection, and all at once only once you've zoomed in. */
+  #graph-svg.is-map .node-label{ opacity:0; transition:opacity .18s ease; pointer-events:none; }
+  #graph-svg.is-map.labels-on .node-label{ opacity:1; }
+  #graph-svg.is-map .node-label.label-show{ opacity:1; }
+  #graph-svg.is-map .link{ opacity:0.14; }
+  #graph-svg.is-map .link.link-active{ opacity:0.95; stroke:var(--amber); stroke-width:1.6; }
+  #graph-svg:not(.is-map) .link.link-active{ stroke:var(--amber); stroke-width:1.8; }
+  #graph-svg:not(.is-map) .land-layer,
+  #graph-svg:not(.is-map) .graticule-layer,
+  #graph-svg:not(.is-map) .stem-layer{ display:none; }
+  .ex-place{ font-family:'Inter',sans-serif; font-size:12px; color:var(--ink-dim);
+    margin-bottom:12px; padding-left:9px; border-left:2px solid var(--line); }
+  .ex-place .pin{ color:var(--amber-dim); }
+  .ex-place em{ display:block; color:var(--ink-faint); font-size:11px; margin-top:3px; font-style:normal; }
+  .ex-search{ margin-bottom:16px; }
+  .ex-search input{ width:100%; background:var(--bg-3); border:1px solid var(--line); color:var(--ink); padding:8px 10px; border-radius:4px; font-family:'Inter',sans-serif; font-size:12.5px; outline:none; }
+  .ex-search input:focus{ border-color:var(--amber-dim); }
+  .theater-item{ display:flex; align-items:center; gap:9px; padding:6px 8px; border-radius:4px; cursor:pointer; font-size:12px; margin-bottom:2px; }
+  .theater-item:hover{ background:var(--bg-3); }
+  .theater-item.off{ opacity:.32; }
+  .theater-item .dot{ width:9px; height:9px; border-radius:50%; flex:0 0 9px; }
+  .theater-item .count{ margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); }
+  .ex-reset{ width:100%; margin-top:14px; background:none; border:1px solid var(--line); color:var(--ink-dim); padding:8px; border-radius:4px; font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1px; cursor:pointer; text-transform:uppercase; }
+  .ex-reset:hover{ border-color:var(--amber-dim); color:var(--amber); }
+  .ex-legend{ margin-top:20px; padding-top:16px; border-top:1px solid var(--line); font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--ink-faint); line-height:1.9; }
+  .ex-main{ grid-row:1; position:relative; min-width:0; background: radial-gradient(circle at 30% 20%, rgba(76,134,168,0.05), transparent 45%), radial-gradient(circle at 75% 70%, rgba(179,69,61,0.05), transparent 45%), var(--bg); }
+  .ex-main svg{ width:100%; height:100%; display:block; cursor:grab; }
+  .ex-main svg:active{ cursor:grabbing; }
+  .ex-hint{ position:absolute; bottom:10px; left:14px; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); background:rgba(11,10,8,0.7); padding:5px 9px; border-radius:3px; pointer-events:none; }
+  .ex-detail{ grid-row:1; border-left:1px solid var(--line); background:var(--bg-2); padding:18px 16px; overflow-y:auto; font-family:'Inter',sans-serif; }
+  .ex-empty{ color:var(--ink-dim); font-size:12.5px; line-height:1.6; }
+  .ex-empty .stamp{ display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--amber-dim); border:1px dashed var(--amber-dim); padding:3px 7px; border-radius:3px; margin-bottom:10px; }
+  .ex-date{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--amber); letter-spacing:1px; margin-bottom:6px; }
+  .ex-theater-badge{ display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:1px; text-transform:uppercase; padding:2px 7px; border-radius:3px; margin-bottom:12px; }
+  .ex-title{ font-family:'Source Serif 4',serif; font-weight:600; font-size:18px; line-height:1.3; margin:0 0 12px; color:var(--ink); }
+  .ex-desc{ font-size:13px; line-height:1.65; color:#CFCCC2; margin-bottom:14px; }
+  .ex-watch-btn{ display:inline-block; margin-bottom:18px; background:var(--amber); color:#1a1408; border:none; padding:9px 14px; border-radius:2px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:1px; text-transform:uppercase; cursor:pointer; }
+  .ex-watch-btn:hover{ background:#e8b563; }
+  .ex-rel-block h3{ font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:var(--ink-dim); margin:0 0 8px; border-top:1px solid var(--line); padding-top:12px; }
+  .ex-rel-item{ display:flex; gap:8px; padding:7px 0; border-bottom:1px dotted var(--line); cursor:pointer; font-size:12px; }
+  .ex-rel-item:hover .ex-rel-title{ color:var(--amber); }
+  .ex-rel-arrow{ color:var(--amber-dim); flex:0 0 auto; }
+  .ex-rel-title{ color:var(--ink); }
+  .ex-rel-label{ display:block; font-family:'IBM Plex Mono',monospace; font-size:9.5px; color:var(--ink-dim); margin-top:1px; }
+  .ex-timeline{ grid-column:1/-1; grid-row:2; border-top:1px solid var(--line); background:var(--bg-2); padding:8px 22px 12px; }
+  .ex-timeline-labels{ display:flex; justify-content:space-between; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-dim); margin-bottom:4px; }
+  #timeline-svg{ width:100%; height:40px; display:block; cursor:pointer; }
+  .link{ stroke-opacity:.5; fill:none; }
+  .link-dim{ stroke-opacity:.05; }
+  .node-label{ font-family:'IBM Plex Mono',monospace; font-size:9px; fill:var(--ink-dim); pointer-events:none; }
+  .node-label-dim{ fill-opacity:.12; }
+  .node.dim{ opacity:.12; }
+  .node.selected .node-ring{ stroke:var(--amber); stroke-width:2.5px; }
+  :focus-visible{ outline:2px solid var(--amber); outline-offset:2px; }
+</style>
+</head>
+<body class="mode-watch">
+
+<nav>
+  <div class="brand">WWII CAUSAL ATLAS · <strong id="navActLabel">REEL I — ORIGINS</strong></div>
+  <div class="nav-right">
+    <a class="nav-refs" href="references.html">Sources</a>
+    <div class="mode-toggle" role="group" aria-label="View mode">
+      <button class="active" id="watchBtn">Watch</button>
+      <button id="exploreBtn">Explore</button>
+    </div>
+  </div>
+</nav>
+<div class="progress-rail" aria-hidden="true"><div class="track"><div class="fill" id="progressFill"></div></div></div>
+
+<div id="watchRoot"><main class="reel" id="reel"></main></div>
+
+<div id="exploreRoot">
+  <aside class="ex-filters">
+    <h2>Layout</h2>
+    <div class="layout-toggle" role="group" aria-label="Graph layout">
+      <button data-layout="map" class="active">World map</button>
+      <button data-layout="network">Network</button>
+    </div>
+    <p class="layout-hint" id="layoutHint"></p>
+    <div class="ex-search"><h2>Search</h2><input type="text" id="search" placeholder="e.g. Barbarossa, Pearl Harbor..."></div>
+    <h2>Theater</h2>
+    <div id="theater-list"></div>
+    <button class="ex-reset" id="reset-btn">↺ Reset filters</button>
+    <div class="ex-legend" id="ex-legend"></div>
+  </aside>
+  <main class="ex-main">
+    <svg id="graph-svg"></svg>
+    <div class="ex-hint">Drag to move · Scroll to zoom · Click a node for detail</div>
+  </main>
+  <aside class="ex-detail" id="detail-panel">
+    <div class="ex-empty"><span class="stamp">NO FILE SELECTED</span><p>Click any event on the map to see its description and its causal links.</p></div>
+  </aside>
+  <div class="ex-timeline">
+    <div class="ex-timeline-labels"><span>1919</span><span id="range-label">Full timeline (1919–1945)</span><span>1945</span></div>
+    <svg id="timeline-svg"></svg>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   WWII CAUSAL ATLAS — SHARED DATA MODEL
+   Every event: id, date, year, theater, act, frame, title, caption, detail, icon
+============================================================ */
+const ACTS = [
+  {n:1, title:'ORIGINS', years:'1919–1939',
+    dek:'Two decades before the first shot of the Second World War, the terms of its opening act were already being written — in treaties, in bread lines, and in the speeches of men not yet in power.',
+    eyebrow:'Before Frame One',
+    intro:'This is not one story but the <strong>set-up for six</strong> — the economic collapse, the resentments, and the treaties broken one at a time that made a second world war possible. Nothing here is inevitable in hindsight; watch how each frame narrows the room for what comes next.'},
+  {n:2, title:'BLITZKRIEG', years:'1939–1941',
+    dek:'Negotiation gives way to invasion. In under a year Germany overruns most of continental Europe, while the Soviet Union — briefly its partner — watches its border creep west, until the partnership breaks entirely.',
+    eyebrow:'Six Weeks, Six Countries',
+    intro:'What began as a single invasion widens fast: neutral states fall in days, France — expected to hold — collapses in six weeks, and by the end of this reel Germany has turned east against the ally it signed a pact with barely two years earlier.'},
+  {n:3, title:'THE WAR GOES GLOBAL', years:'1941–1942',
+    dek:'A resource embargo half a world away from Europe\'s battlefields sets off a chain that turns two separate wars into one. Within days of a single morning attack, every major power on earth is at war.',
+    eyebrow:'One Morning, Two Oceans',
+    intro:'This is the shortest reel and the one with the widest consequences: a single attack pulls the United States into a war it had avoided, and alliance obligations do the rest — merging the war in Europe and the war in Asia into one global conflict.'},
+  {n:4, title:'THE TURN', years:'1942–1943',
+    dek:'On three continents at once, the Axis advance stalls, then reverses. No single battle ends the war here, but by the end of this reel, momentum has changed sides for good.',
+    eyebrow:'The High-Water Mark',
+    intro:'Watch the sequencing: within months of each other, Axis forces are stopped at El Alamein, at Stalingrad, and at Guadalcanal — three unrelated fronts reaching their limit at nearly the same time.'},
+  {n:5, title:'COLLAPSE OF THE AXIS', years:'1944–1945',
+    dek:'With the initiative gone, the Axis now fights a defensive war on every front simultaneously. Two Allied offensives, launched days apart on opposite sides of Europe, close the vice.',
+    eyebrow:'Two Fronts, Closing',
+    intro:'Notice the timing again: the landings in Normandy and the Soviet offensive in Belarus open just over two weeks apart — deliberately sequenced to prevent Germany from shifting forces between fronts.'},
+  {n:6, title:'ENDGAME', years:'1945',
+    dek:'The war\'s final months bring the costliest island battles of the Pacific, a conference that shapes the postwar world before the war is even over, and two weapons that end it in days.',
+    eyebrow:'The Last Reel',
+    intro:'This is where every thread — Europe, the Pacific, the diplomacy that started in Reel I — comes to a close within a single year, several endings arriving within days of each other.'},
+];
+
+const THEATERS = {
+  origins: {label:'Origins & Diplomacy', hex:'#8A7CA8'},
+  europe:  {label:'Western & Central Europe', hex:'#4C86A8'},
+  eastern: {label:'Eastern Front', hex:'#B3453D'},
+  pacific: {label:'Pacific', hex:'#3A8F7B'},
+  china:   {label:'China', hex:'#8A9A4C'},
+  africa:  {label:'North Africa & Mediterranean', hex:'#C9A227'},
+};
+
+const events = [
+  // ---- REEL I — ORIGINS ----
+  {id:'versailles', date:'June 1919', year:1919, theater:'origins', act:1, frame:'001', title:'The Treaty of Versailles',
+   caption:'Germany signs the treaty ending the First World War, accepting reparations, territorial losses, and strict limits on its military.',
+   detail:'Article 231 assigned responsibility for the war to Germany and its allies — a clause read in Germany as a demand to confess sole guilt. The treaty required substantial reparations payments, returned Alsace-Lorraine to France, and capped the German army at 100,000 men with no air force, tanks, or submarines. It was negotiated primarily by Britain, France, the United States, and Italy, with Germany excluded from the talks and presented the terms to sign.', icon:'seal'},
+  {id:'depression', date:'1929', year:1929, theater:'origins', act:1, frame:'002', title:'The Great Depression',
+   caption:'A global economic collapse, triggered by the Wall Street crash, brings mass unemployment and political instability across Europe.',
+   detail:'By 1932, German unemployment approached 6 million — close to a third of the workforce. Banks failed across Central Europe, export economies collapsed, and mainstream parties lost credibility as they failed to reverse the slide. The crisis hit Germany, still repaying war reparations, with particular force.', icon:'crash'},
+  {id:'manchuria', date:'September 1931', year:1931, theater:'china', act:1, frame:'003', title:'Japan Invades Manchuria',
+   caption:'The Japanese Army occupies Manchuria in northeast China and establishes the puppet state of Manchukuo.',
+   detail:'The invasion followed a staged explosion on a Japanese-controlled railway near Mukden, used as pretext. The League of Nations condemned the action; Japan responded by withdrawing from the League in 1933. It marked the first major territorial conquest by a future Axis power, eight years before war broke out in Europe.', icon:'flag'},
+  {id:'hitler-power', date:'January 1933', year:1933, theater:'origins', act:1, frame:'004', title:'Hitler Appointed Chancellor',
+   caption:'Adolf Hitler is appointed Chancellor of Germany, and within months moves to eliminate all political opposition.',
+   detail:'Hitler was appointed by President Hindenburg as head of a coalition government. The Reichstag Fire in February 1933 was used to justify emergency powers, and the Enabling Act of March 1933 allowed Hitler to enact laws without parliamentary approval, effectively ending German democracy within two months.', icon:'podium'},
+  {id:'rearmament', date:'1935–1936', year:1935, theater:'origins', act:1, frame:'005', title:'Rearmament & the Rhineland',
+   caption:'Germany openly rebuilds its military and sends troops into the demilitarized Rhineland, breaking Versailles without consequence.',
+   detail:'Conscription was reintroduced in 1935 and the Luftwaffe (air force) publicly unveiled — both forbidden under Versailles. In March 1936, German troops entered the Rhineland, a zone kept demilitarized by treaty. France and Britain, occupied with domestic concerns, did not intervene.', icon:'hammer'},
+  {id:'sino-japanese', date:'July 1937', year:1937, theater:'china', act:1, frame:'006', title:'Full-Scale War in China',
+   caption:'Fighting at the Marco Polo Bridge near Beijing escalates into a full-scale war between Japan and China.',
+   detail:'What began as a skirmish between Japanese and Chinese troops expanded rapidly; by the end of 1937 Japan had captured Shanghai and Nanjing. The conflict would continue, largely independent of events in Europe, until it merged into the wider Pacific War in 1941.', icon:'arrows'},
+  {id:'anschluss', date:'March 1938', year:1938, theater:'origins', act:1, frame:'007', title:'The Anschluss',
+   caption:'Germany annexes Austria. No foreign power intervenes militarily.',
+   detail:'German troops crossed into Austria on 12 March 1938, and a rigged plebiscite the following month recorded near-unanimous support for union with Germany. The annexation violated Versailles explicitly. Britain and France registered protest but took no action, reinforcing a pattern of unopposed expansion.', icon:'merge'},
+  {id:'munich', date:'September 1938', year:1938, theater:'origins', act:1, frame:'008', title:'The Munich Agreement',
+   caption:'Britain, France, Germany, and Italy sign an agreement allowing Germany to annex the Sudetenland region of Czechoslovakia.',
+   detail:'Czechoslovakia itself was not party to the negotiations that decided its border. British Prime Minister Neville Chamberlain described the deal as securing "peace for our time." The Sudetenland contained Czechoslovakia\'s main border fortifications, which passed to Germany along with the territory.', icon:'document'},
+  {id:'czech-occupy', date:'March 1939', year:1939, theater:'origins', act:1, frame:'009', title:'Czechoslovakia Dismantled',
+   caption:'German troops occupy the remainder of Czechoslovakia, going beyond what Munich had granted.',
+   detail:'This move broke the explicit terms of the Munich Agreement, which had only ceded the Sudetenland. Britain responded by extending a guarantee of military support to Poland, widely seen as likely next on the list — a commitment that would be tested within six months.', icon:'break'},
+  {id:'molotov-ribbentrop', date:'August 1939', year:1939, theater:'origins', act:1, frame:'010', title:'The Molotov–Ribbentrop Pact',
+   caption:'Germany and the Soviet Union sign a non-aggression pact, with a secret protocol dividing Eastern Europe into spheres of influence.',
+   detail:'Signed by foreign ministers Vyacheslav Molotov and Joachim von Ribbentrop, the public pact bound both sides not to attack each other for ten years. A secret protocol, not disclosed until after the war, divided Poland, Finland, Estonia, Latvia, and Lithuania into German and Soviet zones. The pact freed Germany from the risk of a two-front war it had planned for.', icon:'signature'},
+
+  // ---- REEL II — BLITZKRIEG ----
+  {id:'poland-invasion', date:'1 Sep 1939', year:1939, theater:'europe', act:2, frame:'011', title:'Germany Invades Poland',
+   caption:'German forces cross the Polish border, combining air power and armor in a fast-moving assault later termed "blitzkrieg."',
+   detail:'German forces crossed the Polish border in the early hours of 1 September, using coordinated air and armored attacks. Contrary to a persistent claim, the Polish air force was not destroyed on the ground: it had dispersed to camouflaged reserve airfields before the invasion and kept flying for roughly two weeks. Organized Polish resistance continued for about five weeks, with the last major unit surrendering on 6 October.', icon:'tank'},
+  {id:'declaration-war', date:'3 Sep 1939', year:1939, theater:'europe', act:2, frame:'012', title:'Britain and France Declare War',
+   caption:'After an ultimatum to Germany expires unanswered, Britain and France declare war, formally beginning the European conflict.',
+   detail:'Britain issued an ultimatum demanding German withdrawal from Poland; when it expired without response, Britain declared war, and France followed hours later. Neither country was in a position to offer Poland any immediate military relief.', icon:'megaphone'},
+  {id:'ussr-poland', date:'17 Sep 1939', year:1939, theater:'europe', act:2, frame:'013', title:'The Soviet Union Enters Poland',
+   caption:'Soviet troops cross into eastern Poland under the pact\'s secret protocol, opening a second front against the already-collapsing Polish state.',
+   detail:'Soviet troops crossed into eastern Poland on 17 September, acting on the secret protocol of the Molotov–Ribbentrop Pact. Polish forces, already engaged against Germany in the west, faced a second front with little capacity to respond. Poland was partitioned between Germany and the USSR by early October.', icon:'merge'},
+  {id:'winter-war', date:'Nov 1939', year:1939, theater:'eastern', act:2, frame:'014', title:'The Winter War', 
+   caption:'The USSR attacks Finland after Finland rejects territorial demands; fierce Finnish resistance in brutal winter conditions inflicts heavy Soviet losses.',
+   detail:'The USSR attacked Finland after Finland rejected Soviet demands for territorial concessions near Leningrad. Finnish forces mounted an unexpectedly effective defense in harsh winter conditions before a March 1940 peace treaty ceded roughly 10% of Finnish territory to the USSR.', icon:'break'},
+  {id:'denmark-norway', date:'Apr 1940', year:1940, theater:'europe', act:2, frame:'015', title:'Denmark & Norway Occupied',
+   caption:'Germany launches simultaneous operations against Denmark, which surrenders within hours, and Norway, which holds out for two months.',
+   detail:'Germany launched simultaneous operations against Denmark, which surrendered within hours, and Norway, where fighting continued for about two months with British and French support before Norway fell. The campaign secured German access to Norwegian ports and Swedish iron-ore shipping routes.', icon:'tank'},
+  {id:'low-countries', date:'May 1940', year:1940, theater:'europe', act:2, frame:'016', title:'The Low Countries Fall',
+   caption:'Germany attacks the Netherlands, Belgium, and Luxembourg, bypassing France\'s fortified border by advancing through the Ardennes forest.',
+   detail:'German forces attacked the Netherlands, Belgium, and Luxembourg on 10 May, bypassing France\'s fortified Maginot Line by advancing through the Ardennes forest, considered impassable to tanks. The Netherlands surrendered within five days; Belgium held out until 28 May.', icon:'tank'},
+  {id:'france-fall', date:'Jun 1940', year:1940, theater:'europe', act:2, frame:'017', title:'France Surrenders',
+   caption:'German armored divisions split Allied forces and reach the Channel; France signs an armistice within six weeks of the invasion beginning.',
+   detail:'German armored divisions broke through French lines and reached the English Channel within two weeks, splitting Allied forces. France signed an armistice on 22 June; the northern two-thirds came under German occupation while a new French government, based in Vichy, administered the south.', icon:'handshake'},
+  {id:'battle-britain', date:'Jul–Oct 1940', year:1940, theater:'europe', act:2, frame:'018', title:'The Battle of Britain',
+   caption:'Germany\'s air force campaigns against British airfields and cities to prepare for invasion; Britain\'s defense holds, and the invasion is postponed.',
+   detail:'Following France\'s fall, the German air force launched a sustained campaign against British airfields, infrastructure, and later cities, intended to establish the air superiority a cross-Channel invasion required. The Royal Air Force, aided by radar-directed defense, inflicted losses sufficient that Germany postponed its invasion plans indefinitely.', icon:'plane'},
+  {id:'italy-africa', date:'Sep 1940', year:1940, theater:'africa', act:2, frame:'019', title:'Italy Opens the North African Front',
+   caption:'Italian forces advance from Libya into British-held Egypt, aiming at the Suez Canal, before a British counteroffensive pushes them back.',
+   detail:'Italian forces advanced from Libya into British-held Egypt in September 1940, aiming to threaten the Suez Canal. The advance stalled, and a British counteroffensive begun in December pushed Italian forces back deep into Libya, prompting Germany to send reinforcements the following year.', icon:'tank'},
+  {id:'tripartite', date:'27 Sep 1940', year:1940, theater:'origins', act:2, frame:'020', title:'The Tripartite Pact',
+   caption:'Germany, Italy, and Japan formalize a three-way military alliance, each committing to support the others if attacked by a new power.',
+   detail:'Germany, Italy, and Japan formalized a mutual defense alliance, committing each to support the others if attacked by a power not already involved in the European or Sino-Japanese conflicts — a clause aimed chiefly at deterring the United States from entering either war.', icon:'alliance'},
+  {id:'italy-greece', date:'28 Oct 1940', year:1940, theater:'africa', act:2, frame:'021', title:'Italy Invades Greece',
+   caption:'Italy attacks Greece from Albania without coordinating with Germany; Greek forces halt the advance and push back into Albanian territory.',
+   detail:'Italy launched an invasion of Greece from Italian-controlled Albania without prior coordination with Germany — Hitler learned of it only as it began. Greek forces halted the advance and pushed Italian troops back into Albanian territory, an unexpected setback that would draw German forces into the Balkans months later.', icon:'tank'},
+  {id:'yugoslavia-greece', date:'Apr 1941', year:1941, theater:'africa', act:2, frame:'022', title:'Germany Occupies Yugoslavia & Greece',
+   caption:'Germany invades both countries within weeks, rescuing Italy\'s stalled Greek campaign weeks before the invasion of the Soviet Union begins.',
+   detail:'After a coup in Yugoslavia removed a government that had aligned with the Axis, and to rescue Italy\'s stalled campaign in Greece, Germany invaded both countries in April 1941. Both were occupied within weeks. Barbarossa then began about five weeks later than first scheduled — though how much of that delay the Balkans actually caused is disputed, with an unusually late spring thaw and unfinished logistics also cited.', icon:'tank'},
+  {id:'barbarossa', date:'22 Jun 1941', year:1941, theater:'eastern', act:2, frame:'023', title:'Operation Barbarossa',
+   caption:'Germany breaks its pact with the Soviet Union, launching the largest land invasion in history along a front from the Baltic to the Black Sea.',
+   detail:'Germany launched the largest land invasion in history, deploying over three million troops. Initial advances were rapid, encircling large Soviet forces, but the campaign\'s timetable — intended to defeat the USSR before winter — was not met.', icon:'tank'},
+  {id:'moscow-battle', date:'Oct 1941–Jan 1942', year:1941, theater:'eastern', act:2, frame:'024', title:'The Battle of Moscow',
+   caption:'German forces reach the outskirts of the Soviet capital before being halted by resistance, exhaustion, and an unprepared-for winter.',
+   detail:'German forces advanced to within sight of Moscow by early December before being halted by stiffening Soviet resistance, exhaustion, supply shortages, and severe winter weather for which German forces were not equipped. A Soviet counteroffensive pushed German lines back from the capital.', icon:'break'},
+
+  // ---- REEL III — THE WAR GOES GLOBAL ----
+  {id:'oil-embargo', date:'Aug 1941', year:1941, theater:'pacific', act:3, frame:'025', title:'The US Oil Embargo on Japan',
+   caption:'After Japan occupies southern French Indochina, the US, Britain, and the Netherlands freeze Japanese assets and cut off oil exports.',
+   detail:'After Japan occupied southern French Indochina, the United States, Britain, and the Netherlands froze Japanese assets and embargoed oil exports — a resource Japan depended on almost entirely from imports. Japanese planners viewed continued operations in China as unsustainable without securing alternative oil supplies, chiefly in Southeast Asia.', icon:'block'},
+  {id:'pearl-harbor', date:'7 Dec 1941', year:1941, theater:'pacific', act:3, frame:'026', title:'Attack on Pearl Harbor',
+   caption:'Japanese carrier aircraft strike the US Pacific Fleet at Hawaii, sinking or damaging eight battleships but missing the fleet\'s carriers, at sea.',
+   detail:'Japanese carrier-based aircraft struck the US Pacific Fleet at anchor in Hawaii without a declaration of war reaching Washington before the attack began. The strike sank or damaged eight battleships and killed over 2,400 people, but missed the fleet\'s aircraft carriers, which were at sea.', icon:'plane'},
+  {id:'us-enters', date:'8 Dec 1941', year:1941, theater:'pacific', act:3, frame:'027', title:'The United States Declares War',
+   caption:'Congress approves a declaration of war against Japan the day after Pearl Harbor, ending prior American neutrality.',
+   detail:'President Roosevelt asked Congress for a declaration of war the day after the attack, calling 7 December "a date which will live in infamy." The declaration passed with near-unanimous support, ending prior American neutrality in the conflict.', icon:'megaphone'},
+  {id:'axis-declare-us', date:'11 Dec 1941', year:1941, theater:'origins', act:3, frame:'028', title:'Germany & Italy Declare War on the US',
+   caption:'Honoring the Tripartite Pact, Germany and Italy declare war on the United States, merging the European and Pacific wars into one conflict.',
+   detail:'Germany and Italy declared war on the United States four days after Pearl Harbor, honoring their Tripartite Pact obligations, though the pact\'s terms technically applied only to defensive situations. The declarations formally merged the European and Pacific conflicts into a single global war.', icon:'alliance'},
+  {id:'japan-expansion', date:'Dec 1941–May 1942', year:1942, theater:'pacific', act:3, frame:'029', title:'Japan Sweeps Southeast Asia',
+   caption:'Within six months of Pearl Harbor, Japan captures the Philippines, Malaya, Singapore, Hong Kong, Burma, and the Dutch East Indies.',
+   detail:'Within six months of Pearl Harbor, Japan captured the Philippines, British Malaya and Singapore, Hong Kong, Burma, and the Dutch East Indies, securing the oil, rubber, and other resources the earlier embargo had denied it. The rapid conquest left Japan controlling a vast defensive perimeter across the Pacific and Southeast Asia.', icon:'flag'},
+
+  // ---- REEL IV — THE TURN ----
+  {id:'midway', date:'Jun 1942', year:1942, theater:'pacific', act:4, frame:'030', title:'The Battle of Midway',
+   caption:'US codebreakers anticipate a Japanese attack on Midway; four Japanese fleet carriers are sunk, a loss Japan\'s naval air power never recovers from.',
+   detail:'US codebreakers had partially decrypted Japanese naval communications, allowing the Pacific Fleet to anticipate a Japanese attack on Midway Atoll and position its carriers for an ambush. Four Japanese fleet carriers were sunk in exchange for one American carrier — a loss from which Japan\'s naval air power never fully recovered.', icon:'ship'},
+  {id:'el-alamein', date:'Oct–Nov 1942', year:1942, theater:'africa', act:4, frame:'031', title:'The Battle of El Alamein',
+   caption:'British Commonwealth forces halt a German-Italian advance toward Suez, then push Axis forces back across Libya.',
+   detail:'British Commonwealth forces under General Montgomery halted a German-Italian advance toward the Suez Canal at El Alamein, then launched a counteroffensive that drove Axis forces back across Libya over the following months.', icon:'tank'},
+  {id:'torch', date:'Nov 1942', year:1942, theater:'africa', act:4, frame:'032', title:'Operation Torch',
+   caption:'American and British forces land in French North Africa, squeezing Axis forces between two advancing fronts.',
+   detail:'American and British forces landed at multiple points along the coast of French North Africa, then under Vichy French control. After brief resistance, French forces there joined the Allies, combining with the British advance from Egypt to squeeze Axis forces from two directions.', icon:'wave'},
+  {id:'stalingrad', date:'Aug 1942–Feb 1943', year:1942, theater:'eastern', act:4, frame:'033', title:'The Battle of Stalingrad',
+   caption:'Months of street fighting end with the German Sixth Army encircled and forced to surrender — one of Germany\'s largest military losses of the war.',
+   detail:'German forces fought street-by-street to capture the city, tying down the Sixth Army through the autumn of 1942. A Soviet counteroffensive in November encircled roughly 250,000 Axis troops; the remaining force surrendered in February 1943.', icon:'tank'},
+  {id:'guadalcanal', date:'Aug 1942–Feb 1943', year:1942, theater:'pacific', act:4, frame:'034', title:'The Battle of Guadalcanal',
+   caption:'Six months of fighting for a single airfield end in Japan\'s withdrawal — the first sustained Allied ground offensive against Japan.',
+   detail:'US Marines landed on Guadalcanal to secure an airfield Japan was building there, beginning six months of intense ground, naval, and air fighting for the island. Japan\'s eventual withdrawal marked the first sustained Allied ground offensive of the Pacific war. (The first outright land defeat inflicted on Japanese forces had come weeks earlier at Milne Bay in New Guinea, where Australian troops repelled a landing in August–September 1942.)', icon:'island'},
+  {id:'axis-africa-surrender', date:'May 1943', year:1943, theater:'africa', act:4, frame:'035', title:'Axis Forces Surrender in Africa',
+   caption:'Squeezed between two advancing Allied armies, remaining German and Italian troops in Tunisia surrender, ending the African campaign.',
+   detail:'Squeezed between British forces advancing from Egypt and Anglo-American forces from the west, the remaining German and Italian troops in Tunisia surrendered, ending Axis presence in Africa and yielding roughly 250,000 prisoners.', icon:'handshake'},
+  {id:'sicily', date:'Jul 1943', year:1943, theater:'africa', act:4, frame:'036', title:'Allied Landings on Sicily',
+   caption:'Allied forces secure Sicily within six weeks in the largest amphibious operation to that point; Mussolini\'s government collapses two weeks in.',
+   detail:'Allied forces landed on Sicily on 9–10 July in the largest amphibious operation of the war to that point, securing the island within six weeks. The invasion brought down Mussolini within about two weeks: the Fascist Grand Council voted against him and the king dismissed and arrested him on 25 July.', icon:'wave'},
+  {id:'kursk', date:'Jul 1943', year:1943, theater:'eastern', act:4, frame:'037', title:'The Battle of Kursk',
+   caption:'Germany\'s massed tank offensive, anticipated by Soviet intelligence, ends in defeat — permanently handing the initiative to the USSR.',
+   detail:'Germany attempted to eliminate a Soviet salient near Kursk with a massed armored offensive, anticipated by Soviet intelligence, which had prepared deep defensive lines. The battle, involving thousands of tanks, ended in a Soviet victory that permanently shifted the strategic initiative on the Eastern Front.', icon:'tank'},
+  {id:'italy-surrender', date:'Sep 1943', year:1943, theater:'africa', act:4, frame:'038', title:'Italy Surrenders',
+   caption:'The new Italian government secretly agrees an armistice with the Allies; Germany rapidly occupies the peninsula in response.',
+   detail:'Following Mussolini\'s removal, the new Italian government secretly negotiated an armistice with the Allies. German forces, anticipating the move, rapidly occupied most of the Italian peninsula and continued fighting there alongside remaining fascist loyalists.', icon:'handshake'},
+  {id:'island-hopping', date:'1943–44', year:1943, theater:'pacific', act:4, frame:'039', title:'"Island Hopping" Begins',
+   caption:'Rather than assault every Japanese-held island, US forces selectively capture and bypass strongholds, isolating them from resupply.',
+   detail:'Rather than assaulting every Japanese-held island, US forces selectively captured strategically useful islands and bypassed heavily fortified ones, isolating them from supply and reinforcement. The strategy allowed faster progress toward Japan while reducing casualties at bypassed strongpoints.', icon:'island'},
+
+  // ---- REEL V — COLLAPSE OF THE AXIS ----
+  {id:'dday', date:'6 Jun 1944', year:1944, theater:'europe', act:5, frame:'040', title:'D-Day: The Normandy Landings',
+   caption:'Allied forces land on five Normandy beaches after a deception campaign convinces German commanders the main invasion would come at Calais.',
+   detail:'Allied forces landed on five beach sectors along the Normandy coast, supported by airborne landings and a deception campaign that had convinced German commanders the main invasion would come further north at Calais. Establishing a secure beachhead opened a sustained second front in Western Europe.', icon:'wave'},
+  {id:'bagration', date:'Jun 1944', year:1944, theater:'eastern', act:5, frame:'041', title:'Operation Bagration',
+   caption:'Timed with the Normandy landings, a massive Soviet offensive destroys much of Germany\'s Army Group Center in Belarus.',
+   detail:'Timed to coincide with the Normandy landings, the Soviet offensive in Belarus destroyed a substantial portion of Germany\'s Army Group Center, inflicting losses comparable to or exceeding those at Stalingrad and driving German forces back toward Poland.', icon:'tank'},
+  {id:'paris-liberated', date:'Aug 1944', year:1944, theater:'europe', act:5, frame:'042', title:'Paris Is Liberated',
+   caption:'A resistance uprising coincides with the arrival of Allied troops; the German garrison surrenders rather than destroy the city as ordered.',
+   detail:'As Allied forces advanced from Normandy, a French resistance uprising in Paris coincided with the arrival of Free French and American troops, and the German commander surrendered the city rather than carry out Hitler\'s demolition order — though how much destructive capacity the garrison still had is debated.', icon:'flag'},
+  {id:'leyte-gulf', date:'Oct 1944', year:1944, theater:'pacific', act:5, frame:'043', title:'The Battle of Leyte Gulf',
+   caption:'The largest naval battle of the war leaves Japan\'s navy unable to mount another major operation, and sees the first organized kamikaze attacks.',
+   detail:'In the largest naval battle of the war, Japan committed nearly its entire remaining fleet in an attempt to destroy American forces supporting the invasion of the Philippines. The battle included the first organized kamikaze attacks and left the Japanese navy unable to mount another major operation for the rest of the war.', icon:'ship'},
+  {id:'bulge', date:'Dec 1944–Jan 1945', year:1944, theater:'europe', act:5, frame:'044', title:'The Battle of the Bulge',
+   caption:'Germany\'s last major offensive in the west aims to split Allied lines; stiffening resistance and clearing weather wear it down within six weeks.',
+   detail:'Germany massed forces for a surprise offensive through the Ardennes forest, aiming to split Allied lines and recapture the port of Antwerp. Initial gains created a visible bulge in Allied lines, but stiffening resistance, reinforcements, and clearing weather that allowed Allied air support wore the offensive down within six weeks.', icon:'tank'},
+
+  // ---- REEL VI — ENDGAME ----
+  {id:'yalta', date:'Feb 1945', year:1945, theater:'origins', act:6, frame:'045', title:'The Yalta Conference',
+   caption:'Roosevelt, Churchill, and Stalin meet to plan postwar Germany, Poland\'s borders, and Soviet entry into the war against Japan.',
+   detail:'With German defeat increasingly certain, Roosevelt, Churchill, and Stalin met in Crimea to discuss the postwar division of Germany, the borders of Poland, the structure of the United Nations, and Soviet entry into the war against Japan within three months of Germany\'s surrender.', icon:'table'},
+  {id:'iwo-jima', date:'Feb–Mar 1945', year:1945, theater:'pacific', act:6, frame:'046', title:'The Battle of Iwo Jima',
+   caption:'US Marines take the fortified island, valued for its airfields, against a Japanese garrison dug into an extensive tunnel network.',
+   detail:'US Marines landed on the small volcanic island, valued for its airfields within fighter range of Japan, against a Japanese garrison dug into an extensive tunnel network. Nearly the entire Japanese garrison was killed, and American casualties were also severe relative to the island\'s size.', icon:'wave'},
+  {id:'okinawa', date:'Apr–Jun 1945', year:1945, theater:'pacific', act:6, frame:'047', title:'The Battle of Okinawa',
+   caption:'The largest US amphibious campaign of the Pacific war sees sustained kamikaze attacks and heavy losses on all sides over nearly three months.',
+   detail:'The invasion of Okinawa, intended as a staging area for an eventual invasion of the Japanese home islands, saw sustained kamikaze attacks on the invasion fleet and heavy casualties among Japanese and Allied combatants and Okinawan civilians alike — casualties that informed later estimates of the cost of invading Japan directly.', icon:'wave'},
+  {id:'berlin-fall', date:'Apr–May 1945', year:1945, theater:'eastern', act:6, frame:'048', title:'The Fall of Berlin',
+   caption:'Soviet forces encircle and fight through Berlin block by block; Hitler takes his own life as the city\'s garrison surrenders days later.',
+   detail:'Soviet forces encircled Berlin in late April 1945, fighting through the city block by block. With Soviet troops within blocks of his bunker and no prospect of relief, Hitler took his own life on 30 April; the city\'s garrison surrendered days later.', icon:'break'},
+  {id:'ve-day', date:'7–8 May 1945', year:1945, theater:'europe', act:6, frame:'049', title:'VE Day — Germany Surrenders',
+   caption:'German commanders sign instruments of unconditional surrender, formally ending the war in Europe while the Pacific war continues.',
+   detail:'Following Hitler\'s death and the fall of Berlin, German commanders signed instruments of unconditional surrender, formally ending the war in Europe. Celebrations broke out across Allied nations, though the war against Japan continued.', icon:'handshake'},
+  {id:'hiroshima', date:'6 Aug 1945', year:1945, theater:'pacific', act:6, frame:'050', title:'The Atomic Bombing of Hiroshima',
+   caption:'The United States drops the first atomic weapon used in warfare on Hiroshima, destroying most of the city.',
+   detail:'The United States dropped an atomic bomb on Hiroshima, a city of roughly 350,000, destroying most of the city and killing an estimated 70,000–140,000 people by the end of the year from the blast and its aftermath. It was the first use of a nuclear weapon in warfare.', icon:'explosion'},
+  {id:'ussr-japan', date:'8 Aug 1945', year:1945, theater:'pacific', act:6, frame:'051', title:'The Soviet Union Declares War on Japan',
+   caption:'Honoring its Yalta commitment, the USSR invades Japanese-occupied Manchuria, removing any prospect of a Moscow-mediated peace.',
+   detail:'Honoring its Yalta commitment, the Soviet Union declared war on Japan and launched a large offensive into Japanese-occupied Manchuria, rapidly overwhelming Japanese forces there and removing any prospect of a negotiated peace mediated through Moscow, which some Japanese officials had been pursuing.', icon:'flag'},
+  {id:'nagasaki', date:'9 Aug 1945', year:1945, theater:'pacific', act:6, frame:'052', title:'The Atomic Bombing of Nagasaki',
+   caption:'Three days after Hiroshima, a second atomic bomb is dropped on Nagasaki as Japanese leadership deliberates over surrender.',
+   detail:'Three days after Hiroshima, the United States dropped a second atomic bomb on Nagasaki, killing an estimated 40,000–80,000 people by the end of the year. Japanese leadership, already weighing surrender, deliberated over the following days.', icon:'explosion'},
+  {id:'japan-surrender', date:'15 Aug 1945', year:1945, theater:'pacific', act:6, frame:'053', title:'Japan Announces Surrender',
+   caption:'Emperor Hirohito announces Japan\'s acceptance of surrender terms in a radio broadcast — the first time most citizens had heard his voice.',
+   detail:'Emperor Hirohito announced Japan\'s acceptance of Allied surrender terms in a radio broadcast to the Japanese public, the first time most citizens had heard his voice. Fighting largely ceased, though the formal surrender document remained to be signed.', icon:'megaphone'},
+  {id:'vj-day', date:'2 Sep 1945', year:1945, theater:'pacific', act:6, frame:'054', title:'Formal Japanese Surrender',
+   caption:'Japanese representatives sign the Instrument of Surrender aboard the USS Missouri in Tokyo Bay, formally ending the Second World War.',
+   detail:'Japanese representatives signed the Instrument of Surrender aboard the USS Missouri in Tokyo Bay, formally ending the Second World War — a conflict that, by most estimates, killed between 70 and 85 million people worldwide.', icon:'document'},
+];
+
+// causal links: {source, target, label} — short & neutral (mechanism, not judgment)
+const links = [
+  {source:'versailles', target:'hitler-power', label:'precondition'},
+  {source:'versailles', target:'rearmament', label:'terms later broken'},
+  {source:'depression', target:'hitler-power', label:'economic shock → political shift'},
+  {source:'hitler-power', target:'rearmament', label:'new policy direction'},
+  {source:'rearmament', target:'anschluss', label:'military capacity'},
+  {source:'manchuria', target:'sino-japanese', label:'conflict expands'},
+  {source:'anschluss', target:'munich', label:'precedent for annexation'},
+  {source:'munich', target:'czech-occupy', label:'agreement exceeded'},
+  {source:'czech-occupy', target:'molotov-ribbentrop', label:'shifted diplomatic map'},
+  {source:'molotov-ribbentrop', target:'poland-invasion', label:'eastern flank secured'},
+  {source:'poland-invasion', target:'declaration-war', label:'direct response'},
+  {source:'molotov-ribbentrop', target:'ussr-poland', label:'secret protocol'},
+  {source:'molotov-ribbentrop', target:'winter-war', label:'Soviet sphere of influence'},
+  {source:'declaration-war', target:'denmark-norway', label:'war escalates'},
+  {source:'denmark-norway', target:'low-countries', label:'campaign continues'},
+  {source:'low-countries', target:'france-fall', label:'advance continues'},
+  {source:'france-fall', target:'battle-britain', label:'focus shifts to Britain'},
+  {source:'tripartite', target:'italy-greece', label:'Axis coordination'},
+  {source:'italy-africa', target:'italy-greece', label:'Italian front widens'},
+  {source:'italy-greece', target:'yugoslavia-greece', label:'German support intervention'},
+  {source:'molotov-ribbentrop', target:'barbarossa', label:'pact broken'},
+  {source:'battle-britain', target:'barbarossa', label:'strategic pivot east'},
+  {source:'barbarossa', target:'moscow-battle', label:'advance on the capital'},
+  {source:'sino-japanese', target:'oil-embargo', label:'international response'},
+  {source:'tripartite', target:'oil-embargo', label:'expansion concerns'},
+  {source:'oil-embargo', target:'pearl-harbor', label:'resource pressure'},
+  {source:'pearl-harbor', target:'us-enters', label:'direct response'},
+  {source:'tripartite', target:'axis-declare-us', label:'alliance commitment'},
+  {source:'us-enters', target:'axis-declare-us', label:'alliance escalation'},
+  {source:'pearl-harbor', target:'japan-expansion', label:'simultaneous offensives'},
+  {source:'oil-embargo', target:'japan-expansion', label:'seeking alternate resources'},
+  {source:'japan-expansion', target:'midway', label:'US counteroffensive'},
+  {source:'midway', target:'guadalcanal', label:'initiative shifts'},
+  {source:'italy-africa', target:'el-alamein', label:'prolonged fighting'},
+  {source:'el-alamein', target:'torch', label:'coordinated pincer'},
+  {source:'moscow-battle', target:'stalingrad', label:'offensive continues south'},
+  {source:'torch', target:'axis-africa-surrender', label:'Allied pincer'},
+  {source:'el-alamein', target:'axis-africa-surrender', label:'Allied pincer'},
+  {source:'axis-africa-surrender', target:'sicily', label:'focus shifts to Italy'},
+  {source:'stalingrad', target:'kursk', label:'Soviet position consolidates'},
+  {source:'sicily', target:'italy-surrender', label:'military & political pressure'},
+  {source:'guadalcanal', target:'island-hopping', label:'strategy continuation'},
+  {source:'kursk', target:'bagration', label:'USSR holds initiative'},
+  {source:'sicily', target:'dday', label:'amphibious landing experience'},
+  {source:'dday', target:'paris-liberated', label:'advance from the coast'},
+  {source:'bagration', target:'berlin-fall', label:'advance westward'},
+  {source:'island-hopping', target:'leyte-gulf', label:'approach to Philippines'},
+  {source:'dday', target:'bulge', label:'German counteroffensive on this front'},
+  {source:'bagration', target:'yalta', label:'shapes postwar planning'},
+  {source:'bulge', target:'ve-day', label:'German forces weakened'},
+  {source:'berlin-fall', target:'ve-day', label:'command center collapses'},
+  {source:'island-hopping', target:'iwo-jima', label:'approach to Japan'},
+  {source:'iwo-jima', target:'okinawa', label:'advance continues'},
+  {source:'yalta', target:'ussr-japan', label:'commitment to enter war'},
+  {source:'okinawa', target:'hiroshima', label:'invasion cost estimates'},
+  {source:'hiroshima', target:'ussr-japan', label:'near-simultaneous events'},
+  {source:'ussr-japan', target:'nagasaki', label:'near-simultaneous events'},
+  {source:'hiroshima', target:'nagasaki', label:'follows directly'},
+  {source:'nagasaki', target:'japan-surrender', label:'surrender decision'},
+  {source:'ussr-japan', target:'japan-surrender', label:'loss of ability to continue'},
+  {source:'japan-surrender', target:'vj-day', label:'formal signing'},
+];
+
+// connector pills shown between consecutive Watch-mode events within an act (only where a direct link exists)
+const connectors = {
+  'hitler-power->rearmament': 'new leadership, new policy',
+  'anschluss->munich': 'precedent for further annexation',
+  'munich->czech-occupy': 'agreement exceeded within months',
+  'czech-occupy->molotov-ribbentrop': 'shifted the diplomatic map',
+  'poland-invasion->declaration-war': 'direct response',
+  'declaration-war->ussr-poland': null,
+  'denmark-norway->low-countries': 'campaign continues',
+  'low-countries->france-fall': 'advance continues',
+  'france-fall->battle-britain': 'focus shifts to Britain',
+  'italy-africa->tripartite': null,
+  'tripartite->italy-greece': 'Axis coordination',
+  'italy-greece->yugoslavia-greece': 'German support intervention',
+  'yugoslavia-greece->barbarossa': null,
+  'barbarossa->moscow-battle': 'advance on the capital',
+  'oil-embargo->pearl-harbor': 'resource pressure',
+  'pearl-harbor->us-enters': 'direct response',
+  'us-enters->axis-declare-us': 'alliance escalation',
+  'axis-declare-us->japan-expansion': null,
+  'el-alamein->torch': 'coordinated pincer',
+  'torch->stalingrad': null,
+  'stalingrad->guadalcanal': null,
+  'axis-africa-surrender->sicily': 'focus shifts to Italy',
+  'sicily->kursk': null,
+  'kursk->italy-surrender': null,
+  'italy-surrender->island-hopping': null,
+  'bagration->paris-liberated': null,
+  'paris-liberated->leyte-gulf': null,
+  'leyte-gulf->bulge': null,
+  'iwo-jima->okinawa': 'advance continues',
+  'okinawa->berlin-fall': null,
+  'berlin-fall->ve-day': 'command center collapses',
+  've-day->hiroshima': null,
+  'hiroshima->ussr-japan': 'near-simultaneous events',
+  'ussr-japan->nagasaki': 'near-simultaneous events',
+  'nagasaki->japan-surrender': 'surrender decision',
+  'japan-surrender->vj-day': 'formal signing',
+};
+
+/* minimal amber line-icons */
+const icons = {
+  seal: `<svg viewBox="0 0 100 100"><circle class="stroke" cx="50" cy="42" r="26"/><path class="stroke" d="M38 42l8 8 16-16"/><path class="stroke" d="M34 64 L28 92 L50 80 L72 92 L66 64"/></svg>`,
+  crash: `<svg viewBox="0 0 100 100"><path class="stroke" d="M10 30h80M10 30v55h80"/><path class="stroke" d="M18 55 L38 40 L52 52 L90 20"/><circle class="fill" cx="90" cy="20" r="3"/></svg>`,
+  flag: `<svg viewBox="0 0 100 100"><path class="stroke" d="M28 10v82"/><path class="stroke fill" d="M28 14 L78 26 L28 40 Z"/><ellipse class="stroke dim" cx="50" cy="88" rx="34" ry="6"/></svg>`,
+  podium: `<svg viewBox="0 0 100 100"><path class="stroke" d="M30 90 L38 40 L62 40 L70 90"/><rect class="stroke" x="24" y="90" width="52" height="4"/><circle class="fill" cx="50" cy="22" r="10"/><path class="stroke" d="M38 40 Q50 30 62 40"/></svg>`,
+  hammer: `<svg viewBox="0 0 100 100"><rect class="stroke fill" x="52" y="14" width="34" height="20" rx="2" transform="rotate(45 69 24)"/><path class="stroke" d="M52 34 L22 64"/><path class="stroke" d="M14 72 L22 64 L30 72 L22 84 Z"/></svg>`,
+  arrows: `<svg viewBox="0 0 100 100"><path class="stroke" d="M15 35h50"/><path class="stroke" d="M55 25 L67 35 L55 45"/><path class="stroke" d="M85 65H35"/><path class="stroke" d="M45 55 L33 65 L45 75"/></svg>`,
+  merge: `<svg viewBox="0 0 100 100"><path class="stroke" d="M20 20 L50 50"/><path class="stroke" d="M80 20 L50 50"/><path class="stroke" d="M50 50 L50 90"/><circle class="fill" cx="50" cy="50" r="4"/></svg>`,
+  document: `<svg viewBox="0 0 100 100"><rect class="stroke" x="26" y="12" width="48" height="64" rx="2"/><path class="stroke dim" d="M36 30h28M36 42h28M36 54h18"/><path class="stroke" d="M30 88 L50 76 L70 88"/></svg>`,
+  break: `<svg viewBox="0 0 100 100"><path class="stroke" d="M10 50 L38 50 L46 30 L54 70 L62 50 L90 50"/></svg>`,
+  signature: `<svg viewBox="0 0 100 100"><path class="stroke" d="M15 70 Q30 30 40 60 Q50 90 60 40 Q68 15 75 55 Q80 75 90 60"/><path class="stroke dim" d="M15 82h70"/></svg>`,
+  spark: `<svg viewBox="0 0 100 100"><path class="stroke" d="M50 12 L58 42 L88 50 L58 58 L50 88 L42 58 L12 50 L42 42 Z"/></svg>`,
+  tank: `<svg viewBox="0 0 100 100"><rect class="stroke" x="20" y="50" width="60" height="20" rx="4"/><rect class="stroke" x="35" y="38" width="26" height="14" rx="2"/><path class="stroke" d="M61 44h28"/><ellipse class="stroke dim" cx="32" cy="74" rx="10" ry="6"/><ellipse class="stroke dim" cx="68" cy="74" rx="10" ry="6"/></svg>`,
+  plane: `<svg viewBox="0 0 100 100"><path class="stroke" d="M50 10 L50 70"/><path class="stroke" d="M15 45 L85 45"/><path class="stroke" d="M40 70 L50 90 L60 70"/><path class="fill" d="M50 10 L58 30 L42 30 Z"/></svg>`,
+  handshake: `<svg viewBox="0 0 100 100"><path class="stroke" d="M10 50 Q30 35 45 50 L55 50 Q70 35 90 50"/><path class="stroke" d="M45 50 L38 58 M55 50 L62 58"/><path class="stroke dim" d="M20 62 L35 50 M80 62 L65 50"/></svg>`,
+  alliance: `<svg viewBox="0 0 100 100"><circle class="stroke" cx="38" cy="40" r="22"/><circle class="stroke" cx="62" cy="40" r="22"/><circle class="stroke" cx="50" cy="64" r="22"/></svg>`,
+  megaphone: `<svg viewBox="0 0 100 100"><path class="stroke fill" d="M20 45 L55 25 L55 75 L20 55 Z"/><path class="stroke" d="M55 30 Q80 40 80 50 Q80 60 55 70"/><path class="stroke dim" d="M20 55 L14 70"/></svg>`,
+  block: `<svg viewBox="0 0 100 100"><circle class="stroke" cx="50" cy="50" r="32"/><path class="stroke" d="M27 27 L73 73"/></svg>`,
+  ship: `<svg viewBox="0 0 100 100"><path class="stroke" d="M15 62 L85 62 L72 82 L28 82 Z"/><path class="stroke" d="M50 62 L50 18"/><path class="stroke fill" d="M50 20 L74 40 L50 40 Z"/></svg>`,
+  wave: `<svg viewBox="0 0 100 100"><path class="stroke" d="M10 55 Q22 45 34 55 T58 55 T82 55"/><path class="stroke" d="M10 70 Q22 60 34 70 T58 70 T82 70"/><path class="stroke" d="M50 40 L50 15"/><path class="stroke fill" d="M42 22 L50 10 L58 22 Z"/></svg>`,
+  island: `<svg viewBox="0 0 100 100"><path class="stroke" d="M10 65 Q25 55 40 65 T70 65 T95 65"/><circle class="fill" cx="50" cy="45" r="10"/><path class="stroke dim" d="M50 35 L50 20"/></svg>`,
+  table: `<svg viewBox="0 0 100 100"><ellipse class="stroke" cx="50" cy="55" rx="34" ry="16"/><circle class="fill" cx="50" cy="30" r="5"/><circle class="fill" cx="26" cy="42" r="5"/><circle class="fill" cx="74" cy="42" r="5"/></svg>`,
+  explosion: `<svg viewBox="0 0 100 100"><path class="stroke" d="M50 90 L50 55"/><ellipse class="stroke fill" cx="50" cy="35" rx="28" ry="22"/><path class="stroke dim" d="M35 55 Q50 65 65 55"/></svg>`,
+};
+
+/* ============================================================
+   WWII CAUSAL ATLAS — SOURCE REGISTRY
+
+   Every event in data.js carries a list of source ids into SOURCES below.
+   NOTES holds claim-level citations for the statements in this project that
+   are corrections of common errors, or that historians actively dispute.
+
+   Coverage is at the level of the event: the sources listed for an event
+   support the claims in that event's caption and detail text. Statements
+   flagged in NOTES are cited individually.
+
+   Source `kind`:
+     primary       document text, official history, or archival record
+     institution   museum / national archive / government body
+     scholarship   peer-reviewed or academic working paper
+     encyclopedia  tertiary reference (itself footnoted — a starting point)
+     journalism    reported article
+
+   Every URL here was checked to resolve at the time of writing.
+============================================================ */
+
+const SOURCES = {
+  "wp-versailles": {
+    "title": "Treaty of Versailles",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Treaty_of_Versailles"
+  },
+  "wp-depression": {
+    "title": "Great Depression",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Great_Depression"
+  },
+  "wp-depression-de": {
+    "title": "Great Depression in Germany",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Great_Depression_in_Germany"
+  },
+  "wp-manchuria": {
+    "title": "Japanese invasion of Manchuria",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Japanese_invasion_of_Manchuria"
+  },
+  "wp-hitler-power": {
+    "title": "Adolf Hitler's rise to power",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Adolf_Hitler's_rise_to_power"
+  },
+  "wp-rearmament": {
+    "title": "Remilitarisation of the Rhineland",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Remilitarisation_of_the_Rhineland"
+  },
+  "wp-sino-japanese": {
+    "title": "Second Sino-Japanese War",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Second_Sino-Japanese_War"
+  },
+  "wp-anschluss": {
+    "title": "Anschluss",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Anschluss"
+  },
+  "wp-munich": {
+    "title": "Munich Agreement",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Munich_Agreement"
+  },
+  "wp-czech-occupy": {
+    "title": "Occupation of Czechoslovakia (1938–1945)",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Occupation_of_Czechoslovakia_(1938%E2%80%931945)"
+  },
+  "wp-molotov-ribbentrop": {
+    "title": "Molotov–Ribbentrop Pact",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Molotov%E2%80%93Ribbentrop_Pact"
+  },
+  "wp-poland-invasion": {
+    "title": "Invasion of Poland",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Invasion_of_Poland"
+  },
+  "wp-polish-af": {
+    "title": "Polish Air Force",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Polish_Air_Force"
+  },
+  "wp-declaration-war": {
+    "title": "Declarations of war during World War II",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Declarations_of_war_during_World_War_II"
+  },
+  "wp-ussr-poland": {
+    "title": "Soviet invasion of Poland",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Soviet_invasion_of_Poland"
+  },
+  "wp-winter-war": {
+    "title": "Winter War",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Winter_War"
+  },
+  "wp-denmark-norway": {
+    "title": "Operation Weserübung",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Operation_Weser%C3%BCbung"
+  },
+  "wp-netherlands": {
+    "title": "German invasion of the Netherlands",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/German_invasion_of_the_Netherlands"
+  },
+  "wp-france": {
+    "title": "Battle of France",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Battle_of_France"
+  },
+  "wp-france-fall": {
+    "title": "Armistice of 22 June 1940",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Armistice_of_22_June_1940"
+  },
+  "wp-battle-britain": {
+    "title": "Battle of Britain",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Battle_of_Britain"
+  },
+  "wp-italy-africa": {
+    "title": "Italian invasion of Egypt",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Italian_invasion_of_Egypt"
+  },
+  "wp-tripartite": {
+    "title": "Tripartite Pact",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Tripartite_Pact"
+  },
+  "wp-italy-greece": {
+    "title": "Greco-Italian War",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Greco-Italian_War"
+  },
+  "wp-yugoslavia": {
+    "title": "Invasion of Yugoslavia",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Invasion_of_Yugoslavia"
+  },
+  "wp-greece": {
+    "title": "German invasion of Greece",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/German_invasion_of_Greece"
+  },
+  "wp-barbarossa": {
+    "title": "Operation Barbarossa",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Operation_Barbarossa"
+  },
+  "wp-moscow-battle": {
+    "title": "Battle of Moscow",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Battle_of_Moscow"
+  },
+  "wp-oil-embargo": {
+    "title": "Prelude to the attack on Pearl Harbor",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Prelude_to_the_attack_on_Pearl_Harbor"
+  },
+  "wp-pearl-harbor": {
+    "title": "Attack on Pearl Harbor",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Attack_on_Pearl_Harbor"
+  },
+  "wp-us-enters": {
+    "title": "United States declaration of war on Japan",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/United_States_declaration_of_war_on_Japan"
+  },
+  "wp-axis-declare-us": {
+    "title": "German declaration of war against the United States",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/German_declaration_of_war_against_the_United_States"
+  },
+  "wp-japan-expansion": {
+    "title": "South-East Asian theatre of World War II",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/South-East_Asian_theatre_of_World_War_II"
+  },
+  "wp-midway": {
+    "title": "Battle of Midway",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Battle_of_Midway"
+  },
+  "wp-el-alamein": {
+    "title": "Second Battle of El Alamein",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Second_Battle_of_El_Alamein"
+  },
+  "wp-torch": {
+    "title": "Operation Torch",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Operation_Torch"
+  },
+  "wp-stalingrad": {
+    "title": "Battle of Stalingrad",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Battle_of_Stalingrad"
+  },
+  "wp-guadalcanal": {
+    "title": "Guadalcanal campaign",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Guadalcanal_campaign"
+  },
+  "wp-milne-bay": {
+    "title": "Battle of Milne Bay",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Battle_of_Milne_Bay"
+  },
+  "wp-kokoda": {
+    "title": "Kokoda Track campaign",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Kokoda_Track_campaign"
+  },
+  "wp-axis-africa-surrender": {
+    "title": "Tunisian campaign",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Tunisian_campaign"
+  },
+  "wp-sicily": {
+    "title": "Allied invasion of Sicily",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Allied_invasion_of_Sicily"
+  },
+  "wp-grand-council": {
+    "title": "Grand Council of Fascism",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Grand_Council_of_Fascism"
+  },
+  "wp-kursk": {
+    "title": "Battle of Kursk",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Battle_of_Kursk"
+  },
+  "wp-italy-surrender": {
+    "title": "Armistice of Cassibile",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Armistice_of_Cassibile"
+  },
+  "wp-island-hopping": {
+    "title": "Leapfrogging (strategy)",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Leapfrogging_(strategy)"
+  },
+  "wp-dday": {
+    "title": "Normandy landings",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Normandy_landings"
+  },
+  "wp-fortitude": {
+    "title": "Operation Fortitude",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Operation_Fortitude"
+  },
+  "wp-bagration": {
+    "title": "Operation Bagration",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Operation_Bagration"
+  },
+  "wp-paris-liberated": {
+    "title": "Liberation of Paris",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Liberation_of_Paris"
+  },
+  "wp-leyte-gulf": {
+    "title": "Battle of Leyte Gulf",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Battle_of_Leyte_Gulf"
+  },
+  "wp-bulge": {
+    "title": "Battle of the Bulge",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Battle_of_the_Bulge"
+  },
+  "wp-yalta": {
+    "title": "Yalta Conference",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Yalta_Conference"
+  },
+  "wp-iwo-jima": {
+    "title": "Battle of Iwo Jima",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Battle_of_Iwo_Jima"
+  },
+  "wp-okinawa": {
+    "title": "Battle of Okinawa",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Battle_of_Okinawa"
+  },
+  "wp-berlin-fall": {
+    "title": "Battle of Berlin",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Battle_of_Berlin"
+  },
+  "wp-ve-day": {
+    "title": "Victory in Europe Day",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Victory_in_Europe_Day"
+  },
+  "wp-atomic": {
+    "title": "Atomic bombings of Hiroshima and Nagasaki",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Atomic_bombings_of_Hiroshima_and_Nagasaki"
+  },
+  "wp-ussr-japan": {
+    "title": "Soviet invasion of Manchuria",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Soviet_invasion_of_Manchuria"
+  },
+  "wp-japan-surrender": {
+    "title": "Surrender of Japan",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Surrender_of_Japan"
+  },
+  "wp-vj-day": {
+    "title": "Japanese Instrument of Surrender",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/Japanese_Instrument_of_Surrender"
+  },
+  "wp-casualties": {
+    "title": "World War II casualties",
+    "pub": "Wikipedia",
+    "kind": "encyclopedia",
+    "url": "https://en.wikipedia.org/wiki/World_War_II_casualties"
+  },
+  "av-versailles": {
+    "title": "The Versailles Treaty, June 28, 1919 (full text)",
+    "pub": "Avalon Project, Yale Law School",
+    "kind": "primary",
+    "url": "https://avalon.law.yale.edu/subject_menus/versailles_menu.asp"
+  },
+  "av-imt-partiii": {
+    "title": "Nazi Conspiracy and Aggression — Aggression against Austria, Czechoslovakia, Poland",
+    "pub": "Avalon Project, Yale Law School",
+    "kind": "primary",
+    "url": "https://avalon.law.yale.edu/imt/partiii.asp"
+  },
+  "av-frgearm": {
+    "title": "Franco-German Armistice, June 25, 1940 (full text)",
+    "pub": "Avalon Project, Yale Law School",
+    "kind": "primary",
+    "url": "https://avalon.law.yale.edu/wwii/frgearm.asp"
+  },
+  "av-tripartite": {
+    "title": "Three-Power Pact Between Germany, Italy and Japan, September 27, 1940 (full text)",
+    "pub": "Avalon Project, Yale Law School",
+    "kind": "primary",
+    "url": "https://avalon.law.yale.edu/wwii/triparti.asp"
+  },
+  "av-gerdec41": {
+    "title": "German Declaration of War with the United States, December 11, 1941 (full text)",
+    "pub": "Avalon Project, Yale Law School",
+    "kind": "primary",
+    "url": "https://avalon.law.yale.edu/wwii/gerdec41.asp"
+  },
+  "av-yalta": {
+    "title": "The Yalta Conference, February 1945 (protocol of proceedings)",
+    "pub": "Avalon Project, Yale Law School",
+    "kind": "primary",
+    "url": "https://avalon.law.yale.edu/wwii/yalta.asp"
+  },
+  "av-blbk18": {
+    "title": "British Blue Book: documents on the outbreak of war, 1939",
+    "pub": "Avalon Project, Yale Law School",
+    "kind": "primary",
+    "url": "https://avalon.law.yale.edu/wwii/blbk18.asp"
+  },
+  "nww2m-barbarossa": {
+    "title": "Operation Barbarossa",
+    "pub": "The National WWII Museum, New Orleans",
+    "kind": "institution",
+    "url": "https://www.nationalww2museum.org/war/articles/operation-barbarossa"
+  },
+  "nww2m-midway": {
+    "title": "The Battle of Midway",
+    "pub": "The National WWII Museum, New Orleans",
+    "kind": "institution",
+    "url": "https://www.nationalww2museum.org/war/articles/battle-midway"
+  },
+  "awm-milne": {
+    "title": "Battle of Milne Bay, 1942 (collection record)",
+    "pub": "Australian War Memorial",
+    "kind": "institution",
+    "url": "https://www.awm.gov.au/collection/E84334"
+  },
+  "hyperwar": {
+    "title": "HyperWar: a hypertext history of the Second World War (official histories & primary documents)",
+    "pub": "ibiblio",
+    "kind": "primary",
+    "url": "https://www.ibiblio.org/hyperwar/"
+  },
+  "dimsdale": {
+    "title": "Dimsdale, Horsewood & van Riel, 'Unemployment in Weimar Germany' (working paper)",
+    "pub": "Nuffield College, Oxford",
+    "kind": "scholarship",
+    "url": "https://www.nuffield.ox.ac.uk/economics/history/Paper56/56dimsdale.pdf"
+  },
+  "ni-polish-af": {
+    "title": "'Not True: Germany Wiped Out the Polish Air Force in Three Days in 1939'",
+    "pub": "The National Interest",
+    "kind": "journalism",
+    "url": "https://nationalinterest.org/blog/buzz/not-true-germany-wiped-out-polish-air-force-three-days-1939-55742"
+  },
+  "cmh-balkans": {
+    "title": "DA Pam 20-260, 'The German Campaigns in the Balkans (Spring 1941)' — Part Five covers the relationship between the Balkan campaign and Barbarossa",
+    "pub": "US Army Center of Military History (scanned copy, Internet Archive)",
+    "kind": "scholarship",
+    "url": "https://archive.org/details/PAM20-260-nsia"
+  },
+  "osti-manhattan": {
+    "title": "Manhattan Project history and declassified records",
+    "pub": "US Dept. of Energy, OSTI OpenNet",
+    "kind": "primary",
+    "url": "https://www.osti.gov/opennet/manhattan-project-history"
+  }
+};
+
+const eventSources = {
+  "versailles": [
+    "av-versailles",
+    "wp-versailles"
+  ],
+  "depression": [
+    "wp-depression",
+    "wp-depression-de",
+    "dimsdale"
+  ],
+  "manchuria": [
+    "wp-manchuria"
+  ],
+  "hitler-power": [
+    "wp-hitler-power"
+  ],
+  "rearmament": [
+    "wp-rearmament"
+  ],
+  "sino-japanese": [
+    "wp-sino-japanese"
+  ],
+  "anschluss": [
+    "wp-anschluss",
+    "av-imt-partiii"
+  ],
+  "munich": [
+    "wp-munich",
+    "av-imt-partiii"
+  ],
+  "czech-occupy": [
+    "wp-czech-occupy",
+    "av-imt-partiii"
+  ],
+  "molotov-ribbentrop": [
+    "wp-molotov-ribbentrop",
+    "av-imt-partiii"
+  ],
+  "poland-invasion": [
+    "wp-poland-invasion",
+    "wp-polish-af",
+    "ni-polish-af"
+  ],
+  "declaration-war": [
+    "wp-declaration-war",
+    "av-blbk18"
+  ],
+  "ussr-poland": [
+    "wp-ussr-poland"
+  ],
+  "winter-war": [
+    "wp-winter-war"
+  ],
+  "denmark-norway": [
+    "wp-denmark-norway"
+  ],
+  "low-countries": [
+    "wp-netherlands",
+    "wp-france"
+  ],
+  "france-fall": [
+    "av-frgearm",
+    "wp-france-fall"
+  ],
+  "battle-britain": [
+    "wp-battle-britain"
+  ],
+  "italy-africa": [
+    "wp-italy-africa"
+  ],
+  "tripartite": [
+    "av-tripartite",
+    "wp-tripartite"
+  ],
+  "italy-greece": [
+    "wp-italy-greece"
+  ],
+  "yugoslavia-greece": [
+    "wp-yugoslavia",
+    "wp-greece",
+    "cmh-balkans"
+  ],
+  "barbarossa": [
+    "wp-barbarossa",
+    "nww2m-barbarossa",
+    "cmh-balkans"
+  ],
+  "moscow-battle": [
+    "wp-moscow-battle"
+  ],
+  "oil-embargo": [
+    "wp-oil-embargo"
+  ],
+  "pearl-harbor": [
+    "wp-pearl-harbor",
+    "hyperwar"
+  ],
+  "us-enters": [
+    "wp-us-enters"
+  ],
+  "axis-declare-us": [
+    "av-gerdec41",
+    "wp-axis-declare-us"
+  ],
+  "japan-expansion": [
+    "wp-japan-expansion"
+  ],
+  "midway": [
+    "wp-midway",
+    "nww2m-midway",
+    "hyperwar"
+  ],
+  "el-alamein": [
+    "wp-el-alamein"
+  ],
+  "torch": [
+    "wp-torch"
+  ],
+  "stalingrad": [
+    "wp-stalingrad"
+  ],
+  "guadalcanal": [
+    "wp-guadalcanal",
+    "wp-milne-bay",
+    "awm-milne",
+    "wp-kokoda"
+  ],
+  "axis-africa-surrender": [
+    "wp-axis-africa-surrender"
+  ],
+  "sicily": [
+    "wp-sicily",
+    "wp-grand-council"
+  ],
+  "kursk": [
+    "wp-kursk"
+  ],
+  "italy-surrender": [
+    "wp-italy-surrender"
+  ],
+  "island-hopping": [
+    "wp-island-hopping"
+  ],
+  "dday": [
+    "wp-dday",
+    "wp-fortitude"
+  ],
+  "bagration": [
+    "wp-bagration"
+  ],
+  "paris-liberated": [
+    "wp-paris-liberated"
+  ],
+  "leyte-gulf": [
+    "wp-leyte-gulf"
+  ],
+  "bulge": [
+    "wp-bulge"
+  ],
+  "yalta": [
+    "av-yalta",
+    "wp-yalta"
+  ],
+  "iwo-jima": [
+    "wp-iwo-jima"
+  ],
+  "okinawa": [
+    "wp-okinawa"
+  ],
+  "berlin-fall": [
+    "wp-berlin-fall"
+  ],
+  "ve-day": [
+    "wp-ve-day"
+  ],
+  "hiroshima": [
+    "wp-atomic",
+    "osti-manhattan"
+  ],
+  "ussr-japan": [
+    "wp-ussr-japan",
+    "av-yalta"
+  ],
+  "nagasaki": [
+    "wp-atomic",
+    "osti-manhattan"
+  ],
+  "japan-surrender": [
+    "wp-japan-surrender"
+  ],
+  "vj-day": [
+    "wp-vj-day",
+    "wp-casualties"
+  ]
+};
+
+const claimNotes = {
+  "depression": [
+    {
+      "claim": "close to a third of the workforce",
+      "note": "German unemployment peaked near 6 million in early 1932, about 30% of the labour force. An earlier draft of this project said \"roughly a quarter\", which understates it.",
+      "sources": [
+        "wp-depression-de",
+        "dimsdale"
+      ]
+    }
+  ],
+  "manchuria": [
+    {
+      "claim": "eight years before war broke out in Europe",
+      "note": "September 1931 to September 1939 is eight years. An earlier draft said \"over a decade\".",
+      "sources": [
+        "wp-manchuria"
+      ]
+    }
+  ],
+  "versailles": [
+    {
+      "claim": "Article 231 assigned responsibility to Germany and its allies",
+      "note": "Article 231 names \"Germany and her allies\", not Germany alone. The reading of it as a confession of sole guilt is how it was received in Germany, not what the clause says.",
+      "sources": [
+        "av-versailles",
+        "wp-versailles"
+      ]
+    }
+  ],
+  "anschluss": [
+    {
+      "claim": "a rigged plebiscite the following month",
+      "note": "German troops entered Austria on 12 March 1938; the plebiscite was held on 10 April 1938 — about four weeks later, not days.",
+      "sources": [
+        "wp-anschluss"
+      ]
+    }
+  ],
+  "poland-invasion": [
+    {
+      "claim": "the Polish air force was not destroyed on the ground",
+      "note": "A persistent myth holds that the Luftwaffe destroyed the Polish air force at its bases in the first days. Polish squadrons had dispersed to camouflaged reserve airfields before 1 September and none remained at their pre-war bases that morning; they stayed in action for roughly two weeks.",
+      "sources": [
+        "wp-polish-af",
+        "ni-polish-af"
+      ]
+    }
+  ],
+  "yugoslavia-greece": [
+    {
+      "claim": "how much of that delay the Balkans actually caused is disputed",
+      "note": "The traditional account has the Balkan campaign delaying Barbarossa by about five weeks. Later work questions how much is attributable to the Balkans, pointing to an unusually late spring thaw, flooded rivers and incomplete logistics. Treat the causal weight as contested.",
+      "sources": [
+        "cmh-balkans",
+        "wp-barbarossa"
+      ]
+    }
+  ],
+  "guadalcanal": [
+    {
+      "claim": "the first sustained Allied ground offensive against Japan",
+      "note": "Guadalcanal is often called the first Allied land victory over Japan. The first land defeat inflicted on Japanese forces was actually at Milne Bay, New Guinea, in August–September 1942, where Australian troops repelled a landing.",
+      "sources": [
+        "wp-milne-bay",
+        "awm-milne",
+        "wp-kokoda"
+      ]
+    }
+  ],
+  "sicily": [
+    {
+      "claim": "brought down Mussolini within about two weeks",
+      "note": "The landings began 9–10 July 1943; the Grand Council voted against Mussolini on 24–25 July and the king dismissed him on 25 July — 15 days. An earlier draft said \"days later\".",
+      "sources": [
+        "wp-sicily",
+        "wp-grand-council"
+      ]
+    }
+  ],
+  "paris-liberated": [
+    {
+      "claim": "how much destructive capacity the garrison still had is debated",
+      "note": "The account of Dietrich von Choltitz sparing Paris rests substantially on his own postwar testimony; historians question how much demolition capability the garrison actually retained.",
+      "sources": [
+        "wp-paris-liberated"
+      ]
+    }
+  ]
+};
+
+/* ============================================================
+   WWII CAUSAL ATLAS — EVENT GEOGRAPHY
+
+   Coordinates for placing each event on the map in Explore mode.
+
+   Not every event is a point on the ground, and the map should not pretend
+   otherwise. Each entry carries a `precision` saying what its dot actually
+   means:
+
+     site      The event happened at this place. A battle, a landing, an
+               attack. The dot is the thing.
+     decision  Signed, declared or announced here — the consequences played
+               out elsewhere. The dot is where people were in a room.
+     region    A campaign or front spanning an area. The dot is a
+               representative centre, not a location.
+     global    Not geographically located at all. The dot is symbolic, placed
+               at the event most associated with it, and drawn as such.
+
+   Nodes with `region` or `global` precision render with a dashed ring in
+   Explore mode, and the detail panel states what the placement means.
+
+   Coordinates are decimal degrees, WGS84, north/east positive.
+   Coastlines in js/world.js are modern; no 1939–45 political borders are
+   drawn, because they changed constantly and drawing one year's would
+   misrepresent every other.
+============================================================ */
+
+const EVENT_GEO = {
+  // ---- REEL I — ORIGINS ----
+  versailles:          {lat:48.80,  lon:2.12,    place:'Palace of Versailles, France',        precision:'decision'},
+  depression:          {lat:40.71,  lon:-74.01,  place:'Wall Street, New York — a worldwide collapse', precision:'global'},
+  manchuria:           {lat:41.81,  lon:123.43,  place:'Mukden (Shenyang), Manchuria',        precision:'site'},
+  'hitler-power':      {lat:52.52,  lon:13.40,   place:'Berlin, Germany',                     precision:'site'},
+  rearmament:          {lat:50.94,  lon:6.96,    place:'The Rhineland — Cologne shown',       precision:'region'},
+  'sino-japanese':     {lat:39.85,  lon:116.21,  place:'Marco Polo Bridge, near Beijing',     precision:'site'},
+  anschluss:           {lat:48.21,  lon:16.37,   place:'Vienna, Austria',                     precision:'site'},
+  munich:              {lat:48.14,  lon:11.58,   place:'Munich, Germany',                     precision:'decision'},
+  'czech-occupy':      {lat:50.09,  lon:14.42,   place:'Prague, Czechoslovakia',              precision:'site'},
+  'molotov-ribbentrop':{lat:55.75,  lon:37.62,   place:'Moscow, USSR',                        precision:'decision'},
+
+  // ---- REEL II — BLITZKRIEG ----
+  'poland-invasion':   {lat:52.10,  lon:19.40,   place:'Poland — first shots at Westerplatte, Gdańsk', precision:'region'},
+  'declaration-war':   {lat:51.51,  lon:-0.13,   place:'London (and Paris hours later)',      precision:'decision'},
+  'ussr-poland':       {lat:52.10,  lon:25.00,   place:'Eastern Poland',                      precision:'region'},
+  'winter-war':        {lat:61.50,  lon:28.50,   place:'Karelian Isthmus, Finland',           precision:'region'},
+  'denmark-norway':    {lat:60.50,  lon:9.50,    place:'Denmark and Norway',                  precision:'region'},
+  'low-countries':     {lat:50.80,  lon:5.00,    place:'The Low Countries and the Ardennes',  precision:'region'},
+  'france-fall':       {lat:49.43,  lon:2.84,    place:'Compiègne, France — where the armistice was signed', precision:'decision'},
+  'battle-britain':    {lat:51.30,  lon:0.30,    place:'Southern England and the Channel',    precision:'region'},
+  'italy-africa':      {lat:31.61,  lon:25.86,   place:'Libya–Egypt frontier — Sidi Barrani shown', precision:'region'},
+  tripartite:          {lat:52.52,  lon:13.40,   place:'Berlin, Germany',                     precision:'decision'},
+  'italy-greece':      {lat:40.00,  lon:20.60,   place:'The Albania–Greece frontier, Epirus',  precision:'region'},
+  'yugoslavia-greece': {lat:43.00,  lon:20.50,   place:'Yugoslavia and Greece',               precision:'region'},
+  barbarossa:          {lat:53.00,  lon:26.00,   place:'The Eastern Front, Baltic to Black Sea', precision:'region'},
+  'moscow-battle':     {lat:55.75,  lon:37.62,   place:'Moscow, USSR',                        precision:'site'},
+
+  // ---- REEL III — THE WAR GOES GLOBAL ----
+  'oil-embargo':       {lat:38.90,  lon:-77.04,  place:'Washington, DC — embargo of Japanese oil imports', precision:'decision'},
+  'pearl-harbor':      {lat:21.36,  lon:-157.95, place:'Pearl Harbor, Oahu, Hawaii',          precision:'site'},
+  'us-enters':         {lat:38.89,  lon:-77.01,  place:'The US Capitol, Washington, DC',      precision:'decision'},
+  'axis-declare-us':   {lat:52.52,  lon:13.40,   place:'Berlin (and Rome the same day)',      precision:'decision'},
+  'japan-expansion':   {lat:5.00,   lon:110.00,  place:'Southeast Asia and the Dutch East Indies', precision:'region'},
+
+  // ---- REEL IV — THE TURN ----
+  midway:              {lat:28.21,  lon:-177.37, place:'Midway Atoll, central Pacific',       precision:'site'},
+  'el-alamein':        {lat:30.83,  lon:28.95,   place:'El Alamein, Egypt',                   precision:'site'},
+  torch:               {lat:35.20,  lon:-2.50,   place:'French North Africa — Casablanca to Algiers', precision:'region'},
+  stalingrad:          {lat:48.71,  lon:44.51,   place:'Stalingrad (Volgograd), USSR',        precision:'site'},
+  guadalcanal:         {lat:-9.58,  lon:160.15,  place:'Guadalcanal, Solomon Islands',        precision:'site'},
+  'axis-africa-surrender':{lat:36.80,lon:10.18,  place:'Tunisia — surrender near Tunis',      precision:'site'},
+  sicily:              {lat:37.50,  lon:14.20,   place:'Sicily',                              precision:'region'},
+  kursk:               {lat:51.73,  lon:36.19,   place:'The Kursk salient, USSR',             precision:'site'},
+  'italy-surrender':   {lat:36.99,  lon:15.22,   place:'Cassibile, Sicily — where the armistice was signed', precision:'decision'},
+  'island-hopping':    {lat:5.00,   lon:160.00,  place:'The central and southwest Pacific',   precision:'region'},
+
+  // ---- REEL V — COLLAPSE OF THE AXIS ----
+  dday:                {lat:49.36,  lon:-0.75,   place:'The Normandy beaches, France',        precision:'site'},
+  bagration:           {lat:53.50,  lon:28.00,   place:'Belarus',                             precision:'region'},
+  'paris-liberated':   {lat:48.86,  lon:2.35,    place:'Paris, France',                       precision:'site'},
+  'leyte-gulf':        {lat:10.80,  lon:125.40,  place:'Leyte Gulf, Philippines',             precision:'site'},
+  bulge:               {lat:50.15,  lon:5.75,    place:'The Ardennes, Belgium and Luxembourg', precision:'region'},
+
+  // ---- REEL VI — ENDGAME ----
+  yalta:               {lat:44.50,  lon:34.17,   place:'Yalta, Crimea',                       precision:'decision'},
+  'iwo-jima':          {lat:24.78,  lon:141.32,  place:'Iwo Jima, Volcano Islands',           precision:'site'},
+  okinawa:             {lat:26.50,  lon:127.94,  place:'Okinawa, Ryukyu Islands',             precision:'site'},
+  'berlin-fall':       {lat:52.52,  lon:13.40,   place:'Berlin, Germany',                     precision:'site'},
+  've-day':            {lat:49.26,  lon:4.03,    place:'Reims, France — surrender ratified in Berlin next day', precision:'decision'},
+  hiroshima:           {lat:34.39,  lon:132.46,  place:'Hiroshima, Japan',                    precision:'site'},
+  'ussr-japan':        {lat:45.00,  lon:126.00,  place:'Japanese-occupied Manchuria',         precision:'region'},
+  nagasaki:            {lat:32.75,  lon:129.87,  place:'Nagasaki, Japan',                     precision:'site'},
+  'japan-surrender':   {lat:35.68,  lon:139.75,  place:'Tokyo — broadcast nationwide',        precision:'decision'},
+  'vj-day':            {lat:35.45,  lon:139.75,  place:'USS Missouri, Tokyo Bay',             precision:'site'},
+};
+
+const GEO_PRECISION = {
+  site:     {label:'exact site',   approx:false, blurb:'This is where the event happened.'},
+  decision: {label:'signed here',  approx:false, blurb:'Signed, declared or announced here — its consequences played out elsewhere.'},
+  region:   {label:'wider region', approx:true,  blurb:'A campaign spanning an area. The dot is a representative centre, not a location.'},
+  global:   {label:'not local',    approx:true,  blurb:'Not a geographic event. The dot is symbolic.'},
+};
+
+/* ============================================================
+   WWII CAUSAL ATLAS — WORLD COASTLINE  (GENERATED — DO NOT EDIT)
+
+   Simplified land outline used as the basemap in Explore mode.
+   Source: Natural Earth 1:110m "land" (public domain),
+   https://www.naturalearthdata.com/downloads/110m-physical-vectors/
+   via https://github.com/nvkelso/natural-earth-vector
+
+   Douglas-Peucker simplified at 0.45 deg, rings under ~2.2 sq deg dropped,
+   coordinates rounded to 2 decimals. Regenerate with tools/build-world.py.
+
+   Coastlines are MODERN. No 1939-45 political borders are drawn - they
+   changed constantly, and picking one year would misrepresent every other.
+============================================================ */
+
+const LAND = [[[106.97,76.97],[114.13,75.85],[109.4,74.18],[113.02,73.98],[113.53,73.34],[115.57,73.75],[123.2,72.97],[123.26,73.74],[126.98,73.57],[128.59,73.04],[129.05,72.4],[128.46,71.98],[131.29,70.79],[132.25,71.84],[139.87,71.49],[139.15,72.42],[140.47,72.85],[149.5,72.2],[152.97,70.84],[159.0,70.87],[159.83,70.45],[159.71,69.72],[160.94,69.44],[167.84,69.58],[169.58,68.69],[170.82,69.01],[170.01,69.65],[170.45,70.1],[175.72,69.88],[180,68.96],[180,64.98],[177.41,64.61],[179.37,62.98],[179.23,62.3],[173.68,61.65],[170.33,59.88],[168.9,60.57],[163.54,59.87],[162.02,58.24],[163.19,57.62],[163.06,56.16],[162.13,56.12],[161.7,55.29],[162.12,54.86],[160.37,54.34],[160.02,53.2],[158.53,52.96],[158.23,51.94],[156.79,51.01],[155.43,55.38],[155.91,56.77],[156.81,57.83],[158.36,58.06],[163.67,61.14],[164.47,62.55],[160.12,60.54],[159.3,61.77],[156.72,61.43],[154.22,59.76],[155.04,59.15],[151.27,58.78],[151.34,59.5],[149.78,59.66],[142.2,59.04],[135.13,54.73],[138.16,53.76],[139.9,54.19],[141.35,53.09],[141.38,52.24],[140.06,48.45],[138.22,46.31],[134.87,43.4],[133.54,42.81],[132.28,43.28],[127.53,39.76],[129.46,36.78],[129.09,35.08],[126.49,34.39],[126.12,36.73],[126.86,36.89],[124.71,38.11],[125.32,39.55],[124.27,39.93],[121.05,38.9],[122.17,40.42],[121.64,40.95],[118.04,39.2],[117.53,38.74],[118.91,37.45],[122.36,37.45],[122.52,36.93],[121.1,36.65],[119.15,34.91],[120.23,34.36],[121.91,31.69],[121.26,30.68],[122.09,29.83],[121.68,28.23],[118.66,24.55],[115.89,22.78],[110.79,21.4],[110.44,20.34],[109.89,20.28],[109.86,21.4],[108.52,21.72],[105.88,19.75],[105.66,19.06],[108.88,15.28],[109.34,13.43],[109.2,11.67],[105.16,8.6],[105.08,9.92],[103.5,10.63],[102.59,12.19],[100.83,12.63],[100.98,13.41],[100.1,13.41],[99.22,9.24],[99.87,9.21],[100.46,7.43],[103.38,4.86],[104.23,1.29],[101.39,2.76],[100.09,6.46],[98.5,8.38],[98.34,7.79],[98.76,11.44],[97.16,16.93],[95.37,15.71],[94.19,16.04],[94.32,18.21],[91.42,22.77],[90.5,22.81],[90.27,21.84],[86.98,21.5],[86.5,20.15],[82.19,16.56],[80.32,15.9],[79.86,10.36],[77.54,7.97],[73.53,15.99],[72.63,21.36],[70.47,20.88],[69.16,22.09],[69.35,22.84],[66.37,25.43],[61.5,25.08],[57.4,25.74],[56.97,26.97],[54.72,26.48],[51.52,27.87],[50.12,30.15],[47.97,29.98],[50.81,24.75],[51.01,26.01],[51.59,25.8],[51.79,24.02],[54.01,24.12],[56.36,26.4],[56.85,24.24],[58.73,23.57],[59.81,22.31],[57.83,20.24],[57.69,18.94],[55.27,17.23],[52.39,16.38],[52.17,15.6],[48.68,14.0],[43.48,12.64],[42.65,16.77],[39.14,21.29],[38.49,23.69],[34.63,28.06],[34.92,29.5],[33.92,27.65],[32.42,29.85],[35.69,23.93],[35.53,23.1],[36.87,22.0],[37.48,18.61],[39.27,15.92],[43.32,12.39],[42.72,11.74],[44.61,10.44],[51.11,12.02],[51.05,10.64],[47.74,4.22],[40.26,-2.57],[39.2,-4.68],[38.8,-6.48],[39.44,-6.84],[39.19,-8.49],[40.48,-10.77],[40.78,-14.69],[39.45,-16.72],[34.79,-19.78],[35.61,-23.71],[32.57,-25.73],[32.2,-28.75],[28.22,-32.77],[25.78,-33.94],[22.57,-33.86],[19.62,-34.82],[18.38,-34.14],[18.22,-31.66],[15.21,-27.09],[14.26,-22.11],[11.79,-18.07],[11.78,-15.79],[13.69,-10.73],[11.92,-5.04],[8.8,-1.11],[9.8,3.07],[9.4,3.73],[8.5,4.77],[5.9,4.26],[4.33,6.27],[1.87,6.14],[-1.96,4.71],[-4.65,5.17],[-7.52,4.34],[-9.0,4.83],[-12.43,7.26],[-14.84,10.88],[-16.61,12.17],[-17.62,14.73],[-16.46,16.14],[-16.15,18.11],[-16.97,21.89],[-14.44,26.25],[-9.56,29.93],[-9.3,32.56],[-6.91,34.11],[-5.93,35.76],[-2.17,35.17],[1.47,36.61],[9.51,37.35],[11.1,36.9],[10.34,33.79],[19.09,30.27],[20.05,30.99],[20.13,32.24],[21.54,32.84],[28.91,30.87],[30.98,31.56],[33.77,30.97],[36.0,34.64],[36.16,36.65],[32.51,36.11],[27.64,36.66],[26.17,39.46],[27.28,40.42],[28.82,40.46],[29.24,41.22],[31.15,41.09],[33.51,42.02],[38.35,40.95],[40.37,41.01],[41.7,41.96],[36.68,45.24],[39.12,47.26],[34.96,46.27],[36.33,45.11],[33.88,44.36],[32.45,45.33],[33.3,46.08],[30.75,46.58],[28.84,44.91],[27.67,42.58],[28.81,41.05],[26.36,40.15],[24.93,40.95],[23.71,40.69],[24.41,40.13],[23.9,39.96],[22.63,40.26],[24.04,37.66],[23.12,37.92],[23.15,36.42],[22.49,36.41],[19.41,40.25],[19.54,41.72],[13.14,45.74],[12.33,45.38],[12.59,44.09],[18.48,40.17],[16.87,40.44],[16.45,39.8],[17.05,38.9],[16.1,37.99],[15.41,40.05],[8.89,44.37],[6.53,43.13],[3.1,43.08],[3.04,41.89],[0.81,41.01],[-0.28,39.31],[0.11,38.74],[-2.15,36.67],[-4.37,36.68],[-5.38,35.95],[-6.52,36.94],[-8.9,36.87],[-8.84,38.27],[-9.53,38.74],[-8.77,40.76],[-9.39,43.03],[-7.98,43.75],[-1.9,43.42],[-1.38,44.02],[-1.19,46.01],[-4.49,47.96],[-4.59,48.68],[-1.62,48.64],[-1.93,49.78],[-0.99,49.35],[1.34,50.13],[1.64,50.95],[3.83,51.62],[4.71,53.09],[8.12,53.53],[8.8,54.02],[8.12,55.52],[8.54,57.11],[10.58,57.73],[10.25,56.89],[10.91,56.46],[9.65,55.47],[10.94,54.01],[12.52,54.47],[14.12,53.76],[17.62,54.85],[19.66,54.43],[21.27,55.19],[21.58,57.41],[22.52,57.75],[24.12,57.03],[24.43,58.38],[23.34,59.19],[29.12,60.03],[28.07,60.5],[22.87,59.85],[21.32,60.72],[21.54,63.19],[25.4,65.11],[23.9,66.01],[22.18,65.72],[21.21,65.03],[21.37,64.41],[17.85,62.75],[17.12,61.34],[18.79,60.08],[16.83,58.72],[15.88,56.1],[12.94,55.36],[10.36,59.47],[8.38,58.31],[5.67,58.59],[4.99,61.97],[10.53,64.49],[14.76,67.81],[19.18,69.82],[23.02,70.2],[24.55,71.03],[28.17,71.19],[31.29,70.45],[30.01,70.19],[31.1,69.56],[36.51,69.06],[41.06,67.46],[41.13,66.79],[38.38,66.0],[33.18,66.63],[34.81,65.9],[34.94,64.41],[37.01,63.85],[36.52,64.78],[37.18,65.14],[39.59,64.52],[40.44,64.76],[39.76,65.5],[42.09,66.48],[43.95,66.07],[44.53,66.76],[43.45,68.57],[46.25,68.25],[46.82,67.69],[45.56,67.57],[45.56,67.01],[46.35,66.67],[53.72,68.86],[54.47,68.81],[53.49,68.2],[58.8,68.88],[59.94,68.28],[61.08,68.94],[60.03,69.52],[60.55,69.85],[68.51,68.09],[69.18,68.62],[66.93,69.45],[66.69,71.03],[69.2,72.84],[72.59,72.78],[72.8,72.22],[71.85,71.41],[72.79,70.39],[72.56,69.02],[73.67,68.41],[71.28,66.32],[72.42,66.17],[75.05,67.76],[74.47,68.33],[74.94,68.99],[73.6,69.63],[74.4,70.63],[73.1,71.45],[74.89,72.12],[74.66,72.83],[75.68,72.3],[75.29,71.34],[76.36,71.15],[75.9,71.87],[77.58,72.27],[81.5,71.75],[80.51,73.65],[86.82,73.94],[86.01,74.46],[87.17,75.12],[100.76,76.43],[104.35,77.7],[106.07,77.37],[104.71,77.13],[106.97,76.97]],[[-90.55,69.5],[-90.55,68.48],[-89.22,69.26],[-88.02,68.62],[-88.32,67.87],[-87.35,67.2],[-85.58,68.78],[-85.52,69.88],[-82.62,69.66],[-81.28,69.16],[-81.96,68.13],[-81.26,67.6],[-83.34,66.41],[-85.77,66.56],[-87.32,64.78],[-93.16,62.02],[-94.24,60.9],[-94.68,58.95],[-93.22,58.78],[-92.3,57.09],[-90.9,57.28],[-85.01,55.3],[-82.27,55.15],[-82.12,53.28],[-79.91,51.21],[-78.6,52.56],[-79.83,54.67],[-76.54,56.53],[-78.52,58.8],[-77.34,59.85],[-78.11,62.32],[-73.84,62.44],[-71.37,61.14],[-69.59,61.06],[-69.29,58.96],[-67.65,58.21],[-64.58,60.34],[-61.4,56.97],[-61.8,56.34],[-57.33,54.63],[-55.76,53.27],[-55.68,52.15],[-60.03,50.24],[-66.4,50.23],[-71.1,46.82],[-68.65,48.3],[-65.06,49.23],[-64.17,48.74],[-65.12,48.07],[-64.47,46.24],[-61.52,45.88],[-60.52,47.01],[-59.8,45.92],[-65.36,43.55],[-66.12,43.62],[-66.16,44.47],[-64.43,45.29],[-67.14,45.14],[-70.69,43.03],[-69.97,41.64],[-73.71,40.93],[-71.95,40.93],[-73.95,40.75],[-74.91,38.94],[-75.53,39.5],[-75.06,38.4],[-75.94,37.22],[-76.35,39.15],[-76.33,38.08],[-76.96,38.23],[-76.3,37.92],[-75.73,35.55],[-81.34,31.44],[-80.06,26.88],[-80.38,25.21],[-81.71,25.87],[-82.93,29.1],[-84.1,30.09],[-85.11,29.64],[-86.4,30.4],[-89.18,30.32],[-89.22,29.29],[-90.15,29.12],[-93.85,29.71],[-96.59,28.31],[-97.37,27.38],[-97.87,22.44],[-96.29,19.32],[-94.43,18.14],[-92.04,18.7],[-90.77,19.28],[-90.28,21.0],[-87.05,21.54],[-88.93,15.89],[-84.98,16.0],[-83.41,15.27],[-83.81,11.1],[-81.44,8.79],[-79.57,9.61],[-76.84,8.64],[-74.91,11.08],[-73.41,11.23],[-71.75,12.44],[-71.14,12.11],[-71.95,11.42],[-71.7,9.07],[-71.04,9.86],[-71.4,10.97],[-70.16,11.38],[-69.94,12.16],[-68.19,10.55],[-64.89,10.08],[-61.88,10.72],[-62.73,10.42],[-62.39,9.95],[-60.83,9.38],[-60.67,8.58],[-59.1,8.0],[-57.15,5.97],[-53.96,5.76],[-51.32,4.2],[-49.97,1.74],[-50.39,-0.08],[-48.62,-0.24],[-48.58,-1.24],[-47.82,-0.58],[-44.91,-1.55],[-44.58,-2.69],[-39.98,-2.87],[-37.22,-4.82],[-35.6,-5.15],[-34.73,-7.34],[-35.13,-9.0],[-38.67,-13.06],[-39.27,-17.87],[-40.94,-21.94],[-41.99,-22.97],[-44.65,-23.35],[-47.65,-24.89],[-48.5,-25.88],[-48.89,-28.67],[-53.81,-34.4],[-56.22,-34.86],[-58.43,-33.91],[-56.79,-36.9],[-57.75,-38.18],[-59.23,-38.72],[-62.34,-38.83],[-62.15,-40.68],[-62.75,-41.03],[-65.12,-41.06],[-64.98,-42.06],[-63.46,-42.56],[-65.18,-43.5],[-65.57,-45.04],[-67.29,-45.55],[-67.58,-46.3],[-65.64,-47.24],[-65.99,-48.13],[-69.14,-50.73],[-68.15,-52.35],[-70.85,-52.9],[-71.01,-53.83],[-74.95,-52.26],[-75.61,-48.67],[-74.13,-46.94],[-75.64,-46.65],[-74.35,-44.1],[-73.24,-44.45],[-72.72,-42.38],[-73.39,-42.12],[-73.7,-43.37],[-74.33,-43.22],[-73.22,-39.26],[-73.59,-37.16],[-71.44,-32.42],[-70.16,-19.76],[-70.37,-18.35],[-71.46,-17.36],[-76.01,-14.65],[-79.76,-7.19],[-81.25,-6.14],[-81.41,-4.74],[-79.77,-2.66],[-80.97,-2.25],[-80.93,-1.06],[-80.09,0.77],[-78.86,1.38],[-77.13,3.85],[-78.18,8.32],[-79.56,8.93],[-80.48,8.09],[-80.0,7.55],[-80.89,7.22],[-81.06,7.82],[-83.51,8.45],[-84.98,10.09],[-85.11,9.56],[-85.66,9.93],[-85.71,11.09],[-87.49,13.3],[-91.23,13.93],[-94.69,16.2],[-96.56,15.65],[-103.5,18.29],[-105.49,19.95],[-105.27,21.42],[-106.03,22.77],[-112.23,28.95],[-113.15,31.17],[-114.78,31.8],[-114.67,30.16],[-109.41,23.36],[-110.03,22.82],[-112.18,24.74],[-112.3,26.01],[-115.06,27.72],[-114.16,28.57],[-115.52,29.56],[-117.3,33.05],[-120.62,34.61],[-124.4,40.31],[-123.9,45.52],[-124.69,48.18],[-123.12,48.04],[-122.59,47.1],[-122.84,49.0],[-127.44,50.83],[-127.85,52.33],[-129.13,52.76],[-134.08,58.12],[-147.11,60.88],[-148.22,60.67],[-148.02,59.98],[-151.72,59.16],[-150.62,61.28],[-154.02,59.35],[-153.29,58.86],[-154.23,58.15],[-158.43,55.99],[-164.79,54.4],[-157.72,57.57],[-157.04,58.92],[-161.97,58.67],[-161.87,59.63],[-163.82,59.8],[-166.12,61.5],[-164.56,63.15],[-160.77,63.77],[-161.52,64.4],[-160.78,64.79],[-164.96,64.45],[-168.11,65.67],[-164.47,66.58],[-161.68,66.12],[-166.76,68.36],[-161.91,70.33],[-156.58,71.36],[-136.5,68.9],[-129.79,70.19],[-129.11,69.78],[-128.14,70.48],[-125.76,69.48],[-124.42,70.16],[-124.29,69.4],[-121.47,69.8],[-113.9,68.4],[-115.3,67.9],[-109.95,67.98],[-108.88,67.38],[-107.79,67.89],[-108.81,68.31],[-108.17,68.65],[-106.15,68.8],[-101.45,67.65],[-98.44,67.78],[-98.56,68.4],[-97.67,68.58],[-96.12,68.24],[-96.13,67.29],[-94.23,69.07],[-96.47,70.09],[-96.39,71.19],[-95.21,71.92],[-91.52,70.19],[-92.41,69.7],[-90.55,69.5]],[[143.56,-13.76],[143.92,-14.55],[144.56,-14.17],[145.37,-14.98],[146.39,-18.96],[148.85,-20.39],[149.68,-22.34],[150.73,-22.4],[153.14,-26.07],[153.57,-28.11],[153.09,-30.92],[150.33,-35.67],[150.0,-37.43],[146.32,-39.04],[144.88,-38.42],[145.03,-37.9],[143.61,-38.81],[140.64,-38.02],[139.57,-36.14],[138.12,-35.61],[138.21,-34.38],[136.83,-35.26],[137.81,-32.9],[135.99,-34.89],[134.27,-32.62],[131.33,-31.5],[126.15,-32.22],[124.22,-32.96],[123.66,-33.89],[119.89,-33.98],[118.02,-35.06],[115.03,-34.2],[115.69,-31.61],[113.34,-26.12],[113.78,-26.55],[113.44,-25.62],[114.23,-26.3],[113.39,-24.38],[114.15,-21.76],[114.23,-22.52],[116.71,-20.7],[120.86,-19.68],[123.01,-16.41],[123.86,-17.07],[123.5,-16.6],[125.69,-14.23],[127.07,-13.82],[129.62,-14.97],[130.62,-12.54],[132.58,-12.11],[131.82,-11.27],[135.3,-12.25],[136.49,-11.86],[136.95,-12.35],[135.5,-15.0],[140.22,-17.71],[141.27,-16.39],[142.52,-10.67],[143.56,-13.76]],[[-27.1,83.52],[-20.85,82.73],[-31.9,82.2],[-22.07,81.73],[-23.17,81.15],[-15.77,81.91],[-12.21,81.29],[-20.05,80.18],[-17.73,80.13],[-19.7,78.75],[-19.67,77.64],[-18.47,76.99],[-21.68,76.63],[-19.83,76.1],[-19.6,75.25],[-20.67,75.16],[-19.37,74.3],[-21.59,74.22],[-20.43,73.82],[-20.76,73.46],[-23.57,73.31],[-22.3,72.18],[-24.79,72.33],[-22.13,71.47],[-21.75,70.66],[-23.54,70.47],[-25.54,71.43],[-25.2,70.75],[-26.36,70.23],[-22.35,70.13],[-27.75,68.47],[-31.78,68.12],[-34.2,66.68],[-39.81,65.46],[-41.19,63.48],[-42.82,62.68],[-42.42,61.9],[-43.38,60.1],[-48.26,60.86],[-51.63,63.63],[-53.97,67.19],[-52.98,68.36],[-51.48,68.73],[-50.87,69.93],[-54.68,69.61],[-54.36,70.82],[-51.39,70.57],[-55.83,71.65],[-54.72,72.59],[-58.59,75.52],[-68.5,76.06],[-71.4,77.01],[-66.76,77.38],[-73.3,78.04],[-65.71,79.39],[-65.32,79.76],[-68.02,80.12],[-62.23,81.32],[-62.65,81.77],[-50.39,82.44],[-44.52,81.66],[-46.9,82.2],[-46.76,82.63],[-38.62,83.55],[-27.1,83.52]],[[-86.56,73.16],[-85.77,72.53],[-84.85,73.34],[-82.32,73.75],[-80.6,72.72],[-80.75,72.06],[-77.82,72.75],[-74.1,71.33],[-72.24,71.56],[-68.79,70.53],[-66.97,69.19],[-68.81,68.72],[-61.85,66.86],[-63.92,65.0],[-66.72,66.39],[-68.02,66.26],[-68.14,65.69],[-65.32,64.38],[-64.67,63.39],[-65.01,62.67],[-68.78,63.75],[-66.17,61.93],[-71.02,62.91],[-74.83,64.68],[-77.71,64.23],[-78.56,64.57],[-77.9,65.31],[-73.96,65.45],[-72.93,67.73],[-78.96,70.17],[-84.94,69.97],[-88.68,70.41],[-89.51,70.76],[-88.47,71.22],[-89.89,71.22],[-90.21,72.24],[-89.44,73.13],[-85.83,73.8],[-86.56,73.16]],[[-68.5,83.11],[-61.85,82.63],[-67.66,81.5],[-65.48,81.51],[-71.18,79.8],[-76.91,79.32],[-75.53,79.2],[-76.22,79.02],[-75.39,78.53],[-79.76,77.21],[-77.89,76.78],[-80.56,76.18],[-89.49,76.47],[-89.62,76.95],[-87.77,77.18],[-88.26,77.9],[-84.98,77.54],[-87.96,78.37],[-85.09,79.35],[-86.93,80.25],[-81.85,80.46],[-87.6,80.52],[-91.59,81.89],[-79.31,83.13],[-68.5,83.11]],[[134.14,-1.15],[134.42,-2.77],[135.46,-3.37],[136.29,-2.31],[138.33,-1.7],[144.58,-3.86],[145.98,-5.47],[147.65,-6.08],[147.19,-7.39],[150.69,-10.58],[147.91,-10.13],[146.05,-8.07],[144.74,-7.63],[142.63,-9.33],[139.13,-8.1],[137.61,-8.41],[138.67,-7.32],[137.93,-5.39],[133.66,-3.54],[132.98,-4.11],[131.99,-2.82],[133.7,-2.21],[132.23,-2.21],[130.52,-0.94],[132.38,-0.37],[134.14,-1.15]],[[117.88,1.83],[119.0,0.9],[117.81,0.78],[116.15,-4.01],[110.22,-2.93],[109.09,-0.46],[109.66,2.01],[111.17,1.85],[111.37,2.7],[113.0,3.1],[116.73,6.92],[119.18,5.41],[117.31,3.23],[117.88,1.83]],[[-114.17,73.12],[-114.67,72.65],[-109.92,72.96],[-108.19,71.65],[-107.69,72.07],[-108.4,73.09],[-106.52,73.08],[-105.4,72.67],[-104.46,70.99],[-101.09,69.58],[-102.73,69.5],[-102.09,69.12],[-102.43,68.75],[-105.96,69.18],[-113.31,68.54],[-117.34,69.96],[-112.42,70.37],[-117.9,70.54],[-118.43,70.91],[-116.11,71.31],[-119.4,71.56],[-117.87,72.71],[-114.17,73.12]],[[50.06,-13.56],[50.38,-15.71],[49.67,-15.71],[47.1,-24.94],[45.41,-25.6],[44.04,-24.99],[43.25,-22.06],[44.37,-20.07],[43.96,-17.41],[44.45,-16.22],[47.71,-14.59],[49.19,-12.04],[50.06,-13.56]],[[105.82,-5.85],[104.71,-5.87],[102.58,-4.22],[95.29,5.48],[97.48,5.25],[100.64,2.1],[101.66,2.08],[103.84,0.1],[103.44,-0.71],[106.11,-3.06],[105.82,-5.85]],[[-3.01,58.63],[-4.07,57.55],[-1.96,57.68],[-3.12,55.97],[-2.09,55.91],[0.47,52.93],[1.68,52.74],[1.05,51.81],[1.45,51.29],[-5.25,49.96],[-5.78,50.16],[-3.41,51.43],[-5.27,51.99],[-4.22,52.3],[-4.58,53.5],[-3.09,53.4],[-2.95,53.98],[-4.84,54.79],[-5.05,55.78],[-5.59,55.31],[-6.15,56.79],[-5.01,58.63],[-3.01,58.63]],[[140.98,37.14],[140.25,35.14],[137.22,34.61],[135.79,33.46],[135.08,34.6],[130.99,33.89],[132.0,33.15],[131.33,31.45],[130.2,31.42],[130.45,32.32],[129.41,33.3],[132.62,35.43],[135.68,35.53],[136.72,37.3],[137.39,36.83],[139.43,38.22],[139.88,40.56],[141.37,41.38],[141.88,39.18],[140.98,37.14]],[[57.54,70.72],[53.68,70.76],[51.46,72.01],[54.43,73.63],[53.51,73.75],[55.9,74.63],[55.63,75.08],[66.21,76.81],[68.85,76.54],[58.48,74.31],[55.42,72.37],[55.62,71.54],[57.54,70.72]],[[-175.01,66.58],[-171.86,66.91],[-169.9,65.98],[-172.53,65.44],[-172.96,64.25],[-178.36,65.39],[-178.69,66.11],[-179.88,65.87],[-179.43,65.4],[-180,64.98],[-180,68.96],[-174.93,67.21],[-175.01,66.58]],[[-120.46,71.4],[-123.09,70.9],[-125.93,71.87],[-123.94,73.68],[-124.92,74.29],[-117.56,74.19],[-115.51,73.48],[-119.22,72.52],[-120.46,71.4]],[[-14.51,66.46],[-14.74,65.81],[-13.61,65.13],[-18.66,63.5],[-22.76,63.96],[-21.78,64.4],[-23.96,64.89],[-22.23,65.38],[-24.33,65.61],[-22.13,66.41],[-20.58,65.73],[-14.51,66.46]],[[-94.68,77.1],[-91.61,76.78],[-89.19,75.61],[-81.13,75.71],[-79.83,74.92],[-89.76,74.52],[-92.42,74.84],[-93.89,76.32],[-97.12,76.75],[-94.68,77.1]],[[173.02,-40.92],[173.96,-40.93],[174.25,-41.77],[172.71,-43.37],[173.08,-43.85],[171.45,-44.24],[170.62,-45.91],[169.33,-46.64],[166.68,-46.22],[167.05,-45.11],[170.52,-43.03],[172.1,-40.96],[173.02,-40.92]],[[-87.02,79.66],[-85.81,79.34],[-90.8,78.22],[-92.88,78.34],[-93.95,78.75],[-93.15,79.38],[-96.71,80.16],[-94.3,80.98],[-94.74,81.21],[-92.41,81.26],[-87.02,79.66]],[[18.25,79.7],[21.54,78.96],[19.03,78.56],[17.12,76.81],[15.91,76.77],[13.76,77.38],[14.67,77.74],[10.44,79.65],[18.25,79.7]],[[125.24,1.42],[123.69,0.24],[120.18,0.24],[120.94,-1.41],[123.34,-0.62],[121.51,-1.9],[123.16,-5.34],[122.24,-5.28],[122.72,-4.46],[121.49,-4.57],[120.97,-2.63],[120.31,-2.93],[120.43,-5.53],[119.37,-5.38],[119.5,-3.49],[118.77,-2.8],[120.04,0.57],[120.89,1.31],[122.93,0.88],[125.24,1.42]],[[-56.13,50.69],[-56.8,49.81],[-53.48,49.25],[-53.79,48.52],[-53.09,48.69],[-52.65,47.54],[-53.07,46.66],[-54.18,46.81],[-54.24,47.75],[-55.4,46.88],[-56.0,46.92],[-55.29,47.39],[-56.25,47.63],[-59.27,47.6],[-57.36,50.72],[-55.41,51.59],[-56.13,50.69]],[[174.61,-36.16],[176.76,-37.88],[178.52,-37.7],[177.97,-39.17],[177.21,-39.15],[175.24,-41.69],[174.65,-41.28],[174.9,-39.91],[173.82,-39.51],[174.7,-37.38],[172.64,-34.53],[174.33,-35.27],[174.61,-36.16]],[[99.94,78.88],[94.97,79.04],[91.18,80.34],[95.94,81.25],[100.19,79.78],[99.94,78.88]],[[-108.21,76.2],[-105.7,75.48],[-112.22,74.42],[-113.87,74.72],[-111.79,75.16],[-117.71,75.22],[-115.4,76.48],[-109.07,75.47],[-110.5,76.43],[-109.58,76.79],[-108.21,76.2]],[[108.62,-6.78],[110.76,-6.47],[115.71,-8.37],[114.56,-8.75],[105.37,-6.85],[106.05,-5.9],[108.62,-6.78]],[[143.91,44.17],[145.32,44.38],[145.54,43.26],[144.06,42.99],[143.18,42.0],[141.61,42.68],[141.07,41.58],[139.96,41.57],[139.82,42.56],[141.38,43.39],[141.97,45.55],[143.91,44.17]],[[143.65,50.75],[144.65,48.98],[143.17,49.31],[142.56,47.86],[143.51,46.14],[142.75,46.74],[142.09,45.97],[142.18,50.95],[141.59,51.94],[141.68,53.3],[142.61,53.76],[142.21,54.23],[142.65,54.37],[143.65,50.75]],[[-67.75,-53.85],[-65.05,-54.7],[-69.23,-55.5],[-74.66,-52.84],[-71.11,-54.07],[-69.35,-52.52],[-67.75,-53.85]],[[-100.36,73.84],[-97.38,73.76],[-98.05,72.99],[-96.54,72.56],[-96.72,71.66],[-99.32,71.36],[-102.5,72.51],[-100.44,72.71],[-101.54,73.36],[-100.36,73.84]],[[121.32,18.5],[122.25,18.48],[122.52,17.09],[121.66,15.93],[121.73,14.33],[123.95,13.78],[124.08,12.54],[122.93,13.55],[120.63,13.86],[120.99,14.53],[120.07,14.97],[119.88,16.36],[120.29,16.03],[120.72,18.51],[121.32,18.5]],[[-6.79,52.26],[-9.98,51.82],[-9.17,52.86],[-9.69,53.88],[-6.73,55.17],[-5.66,54.55],[-6.79,52.26]],[[145.09,75.56],[144.3,74.82],[138.96,74.61],[136.97,75.26],[138.83,76.14],[145.09,75.56]],[[-79.68,22.77],[-74.18,20.28],[-77.76,19.86],[-77.09,20.41],[-78.72,21.6],[-81.8,22.64],[-84.97,21.9],[-82.27,23.19],[-79.68,22.77]],[[126.38,8.41],[126.54,7.19],[126.2,6.27],[125.83,7.29],[125.36,6.79],[125.4,5.58],[124.22,6.16],[123.61,7.83],[121.92,7.19],[123.49,8.69],[123.84,8.24],[125.47,8.99],[125.41,9.76],[126.38,8.41]],[[145.4,-40.79],[148.29,-40.88],[147.91,-43.21],[146.05,-43.55],[144.72,-41.16],[145.4,-40.79]],[[-85.16,65.66],[-80.1,63.73],[-83.11,64.1],[-85.52,63.05],[-85.87,63.64],[-87.22,63.54],[-86.35,64.04],[-85.88,65.74],[-85.16,65.66]],[[-72.58,19.87],[-69.95,19.65],[-68.32,18.61],[-70.67,18.43],[-71.4,17.6],[-74.46,18.34],[-72.33,18.67],[-73.42,19.64],[-72.58,19.87]],[[-98.5,76.72],[-97.74,76.26],[-98.16,75],[-102.5,75.56],[-102.57,76.34],[-98.5,76.72]],[[-93.2,72.77],[-95.41,72.06],[-96.02,73.44],[-94.5,74.13],[-90.51,73.86],[-93.2,72.77]],[[25.45,80.41],[27.41,80.06],[23.02,79.4],[17.37,80.32],[25.45,80.41]],[[-116.2,77.65],[-117.11,76.53],[-122.85,76.12],[-119.1,77.51],[-116.2,77.65]],[[81.22,6.2],[80.35,5.97],[79.87,6.76],[80.15,9.82],[81.79,7.52],[81.22,6.2]],[[105.08,78.31],[99.44,77.92],[102.09,79.35],[105.37,78.71],[105.08,78.31]],[[-123.51,48.51],[-125.66,48.83],[-128.06,49.99],[-128.36,50.77],[-125.76,50.3],[-123.51,48.51]],[[15.52,38.23],[15.1,36.62],[12.43,37.61],[12.57,38.13],[15.52,38.23]],[[151.98,-5.48],[150.24,-6.32],[148.32,-5.75],[150.14,-5.0],[150.81,-5.46],[152.14,-4.15],[151.98,-5.48]],[[-100.06,78.32],[-99.67,77.91],[-105.18,78.38],[-104.21,78.68],[-105.49,79.3],[-100.06,78.32]],[[121.18,22.79],[120.75,21.97],[120.11,23.56],[121.5,25.3],[121.95,25.0],[121.18,22.79]],[[124.44,-10.14],[123.46,-10.24],[125.09,-8.66],[127.34,-8.4],[124.44,-10.14]],[[-76.34,73.1],[-79.49,72.74],[-80.88,73.33],[-78.06,73.65],[-76.34,73.1]],[[9.21,41.21],[9.67,39.18],[8.81,38.91],[8.16,40.95],[9.21,41.21]],[[110.34,18.68],[108.66,18.51],[108.63,19.37],[110.79,20.08],[110.34,18.68]],[[51.14,80.55],[47.59,80.01],[44.85,80.59],[51.14,80.55]],[[-95.65,69.11],[-99.8,69.4],[-98.22,70.14],[-95.65,69.11]]];
+
+/* ============================================================
+   WWII CAUSAL ATLAS — APP LOGIC
+   Depends on data.js (ACTS, THEATERS, events, links, connectors, icons)
+============================================================ */
+const eventById = Object.fromEntries(events.map(e => [e.id, e]));
+const linksData = links.map(l => ({...l}));
+
+/* ================= SOURCES: shared renderer for both modes ================= */
+const KIND_LABEL = {
+  primary:'primary source', institution:'institution', scholarship:'scholarship',
+  encyclopedia:'reference', journalism:'journalism'
+};
+
+function srcLink(id){
+  const s = SOURCES[id];
+  if (!s) return '';
+  return `<a class="src-link" href="${s.url}" target="_blank" rel="noopener noreferrer">${s.title}</a>`
+       + `<span class="src-pub">${s.pub}</span>`
+       + `<span class="src-kind" data-kind="${s.kind}">${KIND_LABEL[s.kind] || s.kind}</span>`;
+}
+
+// Returns the "Sources" block for an event: any claim-level notes first, then
+// the list of works supporting that event's caption and detail text.
+function sourcesHTML(eventId){
+  const ids = (typeof eventSources !== 'undefined' && eventSources[eventId]) || [];
+  const notes = (typeof claimNotes !== 'undefined' && claimNotes[eventId]) || [];
+  if (!ids.length && !notes.length) return '';
+  let html = `<div class="src-block">`;
+  notes.forEach(n => {
+    html += `<div class="src-note">`
+         +  `<div class="src-note-label">On &ldquo;${n.claim}&rdquo;</div>`
+         +  `<p>${n.note}</p>`
+         +  `<ul class="src-list">${n.sources.map(s => `<li>${srcLink(s)}</li>`).join('')}</ul>`
+         +  `</div>`;
+  });
+  if (ids.length){
+    html += `<div class="src-head">Sources</div>`
+         +  `<ul class="src-list">${ids.map(s => `<li>${srcLink(s)}</li>`).join('')}</ul>`
+         +  `<a class="src-all" href="references.html" target="_blank" rel="noopener">All references &amp; method &rarr;</a>`;
+  }
+  return html + `</div>`;
+}
+
+/* ================= RENDER: WATCH MODE (all reels, continuous scroll) ================= */
+const reel = document.getElementById('reel');
+
+ACTS.forEach((act, actIdx) => {
+  const actEvents = events.filter(e => e.act === act.n);
+
+  const hero = document.createElement('header');
+  hero.className = 'hero';
+  hero.dataset.act = act.n;
+  hero.innerHTML = `
+    <div class="filmstrip-edge top" aria-hidden="true"></div>
+    <div class="reel-label">Reel ${toRoman(act.n)} of VI</div>
+    <h1>${act.title}</h1>
+    <div class="years">${act.years}</div>
+    <p class="dek">${act.dek}</p>
+    <div class="scroll-cue"><span>Scroll to continue</span><span class="arrow"></span></div>
+    <div class="filmstrip-edge bottom" aria-hidden="true"></div>
+  `;
+  reel.appendChild(hero);
+
+  const intro = document.createElement('section');
+  intro.className = 'act-intro';
+  intro.dataset.act = act.n;
+  intro.innerHTML = `<div class="eyebrow">${act.eyebrow}</div><p>${act.intro}</p>`;
+  reel.appendChild(intro);
+
+  actEvents.forEach((e, i) => {
+    const reverse = i % 2 === 1;
+    if (i > 0){
+      const key = actEvents[i-1].id + '->' + e.id;
+      const label = connectors[key];
+      const connector = document.createElement('div');
+      connector.className = 'link-connector';
+      connector.dataset.act = act.n;
+      connector.innerHTML = label ? `<div class="pill"><span class="arrow-down">&#8595;</span> ${label}</div>` : ``;
+      reel.appendChild(connector);
+    }
+    const sec = document.createElement('section');
+    sec.className = 'event' + (reverse ? ' reverse' : '');
+    sec.id = 'watch-' + e.id;
+    sec.dataset.act = act.n;
+    sec.innerHTML = `
+      <div class="event-art">${icons[e.icon] || icons.spark}</div>
+      <div class="event-copy">
+        <div class="reel-meta"><span class="frame">FRAME ${e.frame}</span><span class="dot"></span><span class="theater-tag">${THEATERS[e.theater].label}</span></div>
+        <span class="date-stamp">${e.date}</span>
+        <h2>${e.title}</h2>
+        <p class="caption">${e.caption}</p>
+        <div class="btn-row">
+          <button class="read-more-btn" data-target="${e.id}-detail" aria-expanded="false">+ Read more</button>
+          <button class="view-network-btn" data-jump="${e.id}">View on network map →</button>
+        </div>
+        <div class="detail" id="${e.id}-detail">${e.detail}${sourcesHTML(e.id)}</div>
+      </div>
+    `;
+    reel.appendChild(sec);
+  });
+
+  if (actIdx < ACTS.length - 1){
+    const next = ACTS[actIdx + 1];
+    const transition = document.createElement('div');
+    transition.className = 'reel-transition';
+    transition.dataset.act = act.n;
+    transition.innerHTML = `<div class="eyebrow">Reel ${toRoman(act.n)} complete</div><h4>Next: Reel ${toRoman(next.n)} — ${next.title}</h4>`;
+    reel.appendChild(transition);
+  }
+});
+
+// final recap after Reel VI
+const recap = document.createElement('section');
+recap.className = 'recap';
+recap.innerHTML = `
+  <div class="eyebrow">End of the Series</div>
+  <div class="recap-title">THE WHOLE WAR, ONE MAP</div>
+  <p class="recap-sub">54 events, six years, every theater — laid out as a single network of cause and effect. Explore it freely: filter by theater, search for anything, or trace how any one event led to the next.</p>
+  <div class="filmstrip">
+    ${events.map(e => `<div class="frame-card" data-jump="watch-${e.id}"><div class="fc-date">${e.date}</div><div class="fc-title">${e.title}</div></div>`).join('')}
+  </div>
+  <div class="next-act">
+    <button class="cta" id="toExploreCta">Explore the full network →</button>
+    <p>Every event above, plus every causal link between them, mapped in one interactive graph.</p>
+  </div>
+`;
+reel.appendChild(recap);
+
+function toRoman(n){
+  return ['','I','II','III','IV','V','VI'][n] || String(n);
+}
+
+document.querySelectorAll('.read-more-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const target = document.getElementById(btn.dataset.target);
+    const open = target.classList.toggle('open');
+    btn.setAttribute('aria-expanded', open);
+    btn.textContent = open ? '− Close' : '+ Read more';
+  });
+});
+document.querySelectorAll('.frame-card').forEach(card => {
+  card.addEventListener('click', () => document.getElementById(card.dataset.jump).scrollIntoView({behavior:'smooth', block:'center'}));
+});
+document.querySelectorAll('.view-network-btn').forEach(btn => {
+  btn.addEventListener('click', () => { setMode('explore'); selectEvent(btn.dataset.jump); centerOnNode(btn.dataset.jump); });
+});
+document.getElementById('toExploreCta').addEventListener('click', () => setMode('explore'));
+
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+}, {threshold:0.22});
+document.querySelectorAll('.event, .link-connector').forEach(el => io.observe(el));
+
+// nav label follows current reel while scrolling
+const navActLabel = document.getElementById('navActLabel');
+const labelObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting){
+      const actN = Number(entry.target.dataset.act);
+      const act = ACTS.find(a => a.n === actN);
+      if (act) navActLabel.textContent = `REEL ${toRoman(actN)} — ${act.title}`;
+    }
+  });
+}, {threshold:0.5});
+document.querySelectorAll('.hero').forEach(el => labelObserver.observe(el));
+
+const progressFill = document.getElementById('progressFill');
+window.addEventListener('scroll', () => {
+  if (document.body.classList.contains('mode-explore')) return;
+  const h = document.documentElement;
+  const scrolled = (h.scrollTop) / (h.scrollHeight - h.clientHeight) * 100;
+  progressFill.style.height = Math.min(100, Math.max(0, scrolled)) + '%';
+});
+
+/* ================= MODE SWITCHING ================= */
+const watchBtn = document.getElementById('watchBtn');
+const exploreBtn = document.getElementById('exploreBtn');
+let graphInitialized = false;
+
+function setMode(mode){
+  if (mode === 'explore'){
+    document.body.classList.remove('mode-watch');
+    document.body.classList.add('mode-explore');
+    exploreBtn.classList.add('active'); watchBtn.classList.remove('active');
+    navActLabel.textContent = 'EXPLORE — FULL NETWORK';
+    if (!graphInitialized){ initGraph(); graphInitialized = true; }
+    resizeGraph(); renderTimeline();
+  } else {
+    document.body.classList.remove('mode-explore');
+    document.body.classList.add('mode-watch');
+    watchBtn.classList.add('active'); exploreBtn.classList.remove('active');
+  }
+}
+watchBtn.addEventListener('click', () => setMode('watch'));
+exploreBtn.addEventListener('click', () => setMode('explore'));
+
+/* ================= EXPLORE MODE: FILTERS ================= */
+const state = { activeTheaters: new Set(Object.keys(THEATERS)), yearRange: [1919, 1945], selected: null, search: '' };
+
+function renderTheaterList(){
+  const list = document.getElementById('theater-list');
+  list.innerHTML = '';
+  Object.entries(THEATERS).forEach(([key, t]) => {
+    const count = events.filter(e => e.theater === key).length;
+    const item = document.createElement('div');
+    item.className = 'theater-item' + (state.activeTheaters.has(key) ? '' : ' off');
+    item.innerHTML = `<span class="dot" style="background:${t.hex}"></span>${t.label}<span class="count">${count}</span>`;
+    item.onclick = () => {
+      if (state.activeTheaters.has(key)) state.activeTheaters.delete(key); else state.activeTheaters.add(key);
+      renderTheaterList(); updateVisibility();
+    };
+    list.appendChild(item);
+  });
+}
+renderTheaterList();
+
+document.getElementById('ex-legend').innerHTML = ACTS.map(a => `Reel ${toRoman(a.n)} — ${a.title} (${a.years})`).join('<br>');
+
+document.getElementById('reset-btn').onclick = () => {
+  state.activeTheaters = new Set(Object.keys(THEATERS));
+  state.yearRange = [1919, 1945]; state.search = '';
+  document.getElementById('search').value = '';
+  renderTheaterList(); renderTimeline(); updateVisibility();
+};
+document.getElementById('search').oninput = (e) => { state.search = e.target.value.trim().toLowerCase(); updateVisibility(); };
+
+const LAYOUT_HINT = {
+  map:'Events sit at their real coordinates. Dashed rings mark events that span a region or aren’t geographic at all — a hairline runs back to the point the dot stands for. Causal arrows fade back here; click any event to light up its own.',
+  network:'Events arranged by cause and effect, left to right by year. Geography is discarded — position means nothing but time and connection.'
+};
+document.querySelectorAll('.layout-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    layout = btn.dataset.layout;
+    document.getElementById('layoutHint').textContent = LAYOUT_HINT[layout];
+    applyLayout();
+    if (state.selected) selectEvent(state.selected);
+  });
+});
+document.getElementById('layoutHint').textContent = LAYOUT_HINT.map;
+
+/* ================= EXPLORE MODE: GRAPH ================= */
+let svg, gRoot, simulation, nodesData, linkSel, nodeSel, labelSel;
+let gLand, gGrat, gStems, stemSel, projection, geoPath;
+let layout = 'map';            // 'map' = geographic, 'network' = force-directed
+
+/* The events span nearly the whole globe. Centring on 145E puts the
+   antimeridian cut in the mid-Atlantic — the emptiest stretch for this
+   dataset — giving Europe on the left, the Pacific centre-right and the
+   Americas on the right, with nothing sliced in half. */
+const MAP_ROTATE = [-145, 0];
+
+function buildProjection(){
+  const w = svg.node().clientWidth || 900, h = svg.node().clientHeight || 500;
+  // Frame to the land itself rather than the whole sphere — Antarctica is
+  // already dropped from the basemap, so this fills the pane with the part
+  // of the world the war actually happened in.
+  const extent = {type:'GeometryCollection',
+    geometries: LAND.map(ring => ({type:'Polygon', coordinates:[ring]}))};
+  projection = d3.geoEquirectangular().rotate(MAP_ROTATE)
+    .fitExtent([[16, 16], [w - 16, h - 16]], extent);
+  geoPath = d3.geoPath(projection);
+}
+// Projected screen position of an event's true coordinates.
+function geoXY(id){
+  const g = EVENT_GEO[id];
+  if (!g || !projection) return null;
+  const p = projection([g.lon, g.lat]);
+  return p && isFinite(p[0]) && isFinite(p[1]) ? p : null;
+}
+function drawBasemap(){
+  if (!gLand) return;
+  buildProjection();
+  gLand.selectAll('path').data(LAND).join('path')
+    .attr('d', d => geoPath({type:'Polygon', coordinates:[d]}));
+  gGrat.selectAll('path').data([d3.geoGraticule().step([30, 30])()])
+    .join('path').attr('d', geoPath);
+}
+
+function initGraph(){
+  svg = d3.select('#graph-svg');
+  gRoot = svg.append('g');
+  svg.call(d3.zoom().scaleExtent([0.3, 8]).on('zoom', (event) => {
+    gRoot.attr('transform', event.transform);
+    // once zoomed in there's room for every label, so bring them all back
+    svg.node().classList.toggle('labels-on', event.transform.k >= 2.2);
+  }));
+
+  const defs = svg.append('defs');
+  defs.append('marker').attr('id','arrow').attr('viewBox','0 -4 8 8').attr('refX',17).attr('refY',0)
+    .attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto')
+    .append('path').attr('d','M0,-4L8,0L0,4').attr('fill','#8C6B33');
+
+  Object.entries(icons).forEach(([key, svgStr]) => {
+    const inner = svgStr.replace(/^<svg viewBox="([^"]+)">/, '').replace(/<\/svg>$/, '');
+    const symbol = defs.append('symbol').attr('id', 'icon-' + key).attr('viewBox', '0 0 100 100');
+    symbol.node().innerHTML = inner;
+  });
+
+  // basemap layers sit underneath the network
+  gLand  = gRoot.append('g').attr('class','land-layer');
+  gGrat  = gRoot.append('g').attr('class','graticule-layer');
+  gStems = gRoot.append('g').attr('class','stem-layer');
+  drawBasemap();
+
+  nodesData = events.map(e => ({...e}));
+  // seed each node at its map position so the first tick doesn't fly in
+  nodesData.forEach(d => { const p = geoXY(d.id); if (p){ d.x = p[0]; d.y = p[1]; } });
+
+  simulation = d3.forceSimulation(nodesData)
+    .force('link', d3.forceLink(linksData).id(d => d.id).distance(80).strength(0.35))
+    .force('charge', d3.forceManyBody().strength(-170))
+    .force('x', d3.forceX().x(d => xForYear(d.year)).strength(0.55))
+    .force('y', d3.forceY().y(0).strength(0.06))
+    .force('collide', d3.forceCollide().radius(22));
+
+  // hairlines from a node to its true coordinate, when crowding pushes it off
+  stemSel = gStems.selectAll('line').data(nodesData).join('line').attr('class','geo-stem');
+
+  linkSel = gRoot.append('g').selectAll('path').data(linksData).join('path')
+    .attr('class','link').attr('stroke','#8C6B33').attr('stroke-width',1).attr('marker-end','url(#arrow)');
+
+  nodeSel = gRoot.append('g').selectAll('g').data(nodesData).join('g').attr('class','node')
+    .call(d3.drag()
+      .on('start', (event,d) => { if (!event.active) simulation.alphaTarget(0.2).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (event,d) => { d.fx=event.x; d.fy=event.y; })
+      .on('end', (event,d) => { if (!event.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+  nodeSel.append('circle')
+    .attr('class', d => 'node-ring' + (isApprox(d.id) ? ' node-approx' : ''))
+    .attr('r', 10)
+    .attr('fill', d => THEATERS[d.theater].hex).attr('fill-opacity', 0.22)
+    .attr('stroke', d => THEATERS[d.theater].hex).attr('stroke-width', 1.3);
+
+  nodeSel.append('use')
+    .attr('href', d => '#icon-' + (d.icon || 'spark'))
+    .attr('width', 13).attr('height', 13).attr('x', -6.5).attr('y', -6.5)
+    .attr('color', d => THEATERS[d.theater].hex)
+    .style('stroke', d => THEATERS[d.theater].hex);
+
+  nodeSel.on('click', (event,d) => { selectEvent(d.id); event.stopPropagation(); });
+  nodeSel.on('mouseenter', (event,d) => showLabels([d.id, state.selected]))
+         .on('mouseleave', () => showLabels([state.selected]));
+  nodeSel.append('title').text(d => d.title);
+
+  labelSel = gRoot.append('g').selectAll('text').data(nodesData).join('text')
+    .attr('class','node-label').attr('dx',12).attr('dy',3)
+    .text(d => d.title.length > 26 ? d.title.slice(0,25)+'…' : d.title);
+
+  svg.on('click', () => selectEvent(null));
+
+  simulation.on('tick', renderPositions);
+
+  applyLayout();
+  updateVisibility();
+}
+
+// Where the event sits on the map, and — just as important — what that dot
+// is actually claiming. Only shown in map layout, where the claim is made.
+function placeHTML(id){
+  if (layout !== 'map') return '';
+  const g = EVENT_GEO[id];
+  if (!g) return '';
+  const p = GEO_PRECISION[g.precision] || {};
+  return `<div class="ex-place"><span class="pin">&#9679;</span> ${g.place}`
+       + (p.blurb ? `<em>${p.blurb}</em>` : '') + `</div>`;
+}
+
+// Paints current node/link positions. Driven by the simulation tick, but also
+// called directly so the map is correct the instant you switch to it, without
+// waiting for the simulation to settle.
+function renderPositions(){
+  if (!nodeSel) return;
+  linkSel.attr('d', d => {
+    const dx=d.target.x-d.source.x, dy=d.target.y-d.source.y, dr=Math.sqrt(dx*dx+dy*dy)*1.6;
+    return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+  });
+  nodeSel.attr('transform', d => `translate(${d.x},${d.y})`);
+  labelSel.attr('x', d => d.x).attr('y', d => d.y);
+  // hairline back to the true coordinate, when crowding has pushed a node off it
+  stemSel.each(function(d){
+    const p = layout === 'map' ? geoXY(d.id) : null;
+    const show = p && Math.hypot(p[0]-d.x, p[1]-d.y) > 6;
+    d3.select(this).attr('display', show ? null : 'none')
+      .attr('x1', show ? p[0] : 0).attr('y1', show ? p[1] : 0)
+      .attr('x2', show ? d.x : 0).attr('y2', show ? d.y : 0);
+  });
+}
+
+// Pins a specific set of labels visible on the map (hover + current selection).
+function showLabels(ids){
+  if (!labelSel) return;
+  const keep = new Set(ids.filter(Boolean));
+  labelSel.classed('label-show', d => keep.has(d.id));
+}
+
+function isApprox(id){
+  const g = EVENT_GEO[id];
+  return !!(g && GEO_PRECISION[g.precision] && GEO_PRECISION[g.precision].approx);
+}
+
+/* Switches the simulation between the geographic and force-directed layouts.
+   Same nodes, same links, same selection — only the forces change, so the
+   nodes visibly travel between the two arrangements. */
+function applyLayout(){
+  if (!simulation) return;
+  const h = svg.node().clientHeight || 500;
+  const isMap = layout === 'map';
+
+  document.getElementById('graph-svg').classList.toggle('is-map', isMap);
+  document.querySelectorAll('.layout-toggle button').forEach(b =>
+    b.classList.toggle('active', b.dataset.layout === layout));
+
+  if (isMap){
+    drawBasemap();
+    // Snap straight onto the projected coordinates. The simulation then only
+    // relaxes overlaps, so the map is geographically right immediately rather
+    // than after the forces settle.
+    nodesData.forEach(d => {
+      const p = geoXY(d.id);
+      if (p){ d.x = p[0]; d.y = p[1]; d.vx = 0; d.vy = 0; }
+    });
+    simulation
+      .force('link', null)
+      .force('charge', d3.forceManyBody().strength(-18))
+      .force('x', d3.forceX().x(d => { const p = geoXY(d.id); return p ? p[0] : 0; }).strength(0.9))
+      .force('y', d3.forceY().y(d => { const p = geoXY(d.id); return p ? p[1] : 0; }).strength(0.9))
+      .force('collide', d3.forceCollide().radius(13).strength(0.85));
+  } else {
+    simulation
+      .force('link', d3.forceLink(linksData).id(d => d.id).distance(80).strength(0.35))
+      .force('charge', d3.forceManyBody().strength(-170))
+      .force('x', d3.forceX().x(d => xForYear(d.year)).strength(0.55))
+      .force('y', d3.forceY().y(h/2).strength(0.06))
+      .force('collide', d3.forceCollide().radius(22));
+  }
+  renderPositions();
+  simulation.alpha(isMap ? 0.35 : 0.9).restart();
+}
+
+function xForYear(year){
+  const w = svg.node().clientWidth || 900;
+  const t = (year - 1919) / (1945 - 1919);
+  return 50 + t * (w - 100);
+}
+function resizeGraph(){
+  if (!svg) return;
+  applyLayout();
+}
+function centerOnNode(id){
+  const d = nodesData && nodesData.find(n => n.id === id);
+  if (!d || !svg) return;
+  const w = svg.node().clientWidth, h = svg.node().clientHeight;
+  const t = d3.zoomIdentity.translate(w/2 - (d.x||w/2), h/2 - (d.y||h/2));
+  svg.transition().duration(500).call(d3.zoom().transform, t);
+}
+
+function eventVisible(e){
+  if (!state.activeTheaters.has(e.theater)) return false;
+  if (e.year < state.yearRange[0] || e.year > state.yearRange[1]) return false;
+  if (state.search && !e.title.toLowerCase().includes(state.search) && !e.caption.toLowerCase().includes(state.search)) return false;
+  return true;
+}
+function updateVisibility(){
+  if (!nodeSel) return;
+  const visibleIds = new Set(nodesData.filter(eventVisible).map(d => d.id));
+  nodeSel.classed('dim', d => !visibleIds.has(d.id));
+  labelSel.classed('node-label-dim', d => !visibleIds.has(d.id));
+  linkSel.classed('link-dim', d => !(visibleIds.has(d.source.id) && visibleIds.has(d.target.id)));
+}
+
+/* ================= EXPLORE MODE: DETAIL PANEL ================= */
+function selectEvent(id){
+  state.selected = id;
+  if (nodeSel) nodeSel.classed('selected', d => d.id === id);
+  if (linkSel) linkSel.classed('link-active', l =>
+    id && ((l.source.id || l.source) === id || (l.target.id || l.target) === id));
+  showLabels([id]);
+  const panel = document.getElementById('detail-panel');
+  if (!id){
+    panel.innerHTML = `<div class="ex-empty"><span class="stamp">NO FILE SELECTED</span><p>Click any event on the map to see its description and its causal links — what led here, and what it led to.</p></div>`;
+    return;
+  }
+  const e = eventById[id];
+  const t = THEATERS[e.theater];
+  const causesOf = linksData.filter(l => (l.target.id||l.target) === id).map(l => ({ev: eventById[l.source.id||l.source], label:l.label}));
+  const leadsTo = linksData.filter(l => (l.source.id||l.source) === id).map(l => ({ev: eventById[l.target.id||l.target], label:l.label}));
+
+  let html = `
+    <div class="ex-date">${e.date}</div>
+    <div class="ex-theater-badge" style="background:${t.hex}22;color:${t.hex};border:1px solid ${t.hex}55">${t.label}</div>
+    <h3 class="ex-title">${e.title}</h3>
+    ${placeHTML(id)}
+    <p class="ex-desc">${e.caption}</p>
+    <button class="ex-watch-btn" id="ex-watch-jump">▶ Watch this moment (Reel ${toRoman(e.act)})</button>
+  `;
+  if (causesOf.length){
+    html += `<div class="ex-rel-block"><h3>← Followed from</h3>`;
+    causesOf.forEach(r => { html += `<div class="ex-rel-item" data-id="${r.ev.id}"><span class="ex-rel-arrow">←</span><span><span class="ex-rel-title">${r.ev.title}</span><span class="ex-rel-label">${r.label}</span></span></div>`; });
+    html += `</div>`;
+  }
+  if (leadsTo.length){
+    html += `<div class="ex-rel-block"><h3>→ Led to</h3>`;
+    leadsTo.forEach(r => { html += `<div class="ex-rel-item" data-id="${r.ev.id}"><span class="ex-rel-arrow">→</span><span><span class="ex-rel-title">${r.ev.title}</span><span class="ex-rel-label">${r.label}</span></span></div>`; });
+    html += `</div>`;
+  }
+  html += sourcesHTML(id);
+  panel.innerHTML = html;
+  panel.querySelectorAll('.ex-rel-item').forEach(el => { el.onclick = () => { selectEvent(el.dataset.id); centerOnNode(el.dataset.id); }; });
+  document.getElementById('ex-watch-jump').onclick = () => { setMode('watch'); setTimeout(() => document.getElementById('watch-'+id).scrollIntoView({behavior:'smooth', block:'center'}), 60); };
+}
+
+/* ================= EXPLORE MODE: TIMELINE ================= */
+const yMin = 1919, yMax = 1945;
+function renderTimeline(){
+  const tSvg = d3.select('#timeline-svg');
+  tSvg.selectAll('*').remove();
+  const tWidth = tSvg.node().clientWidth || 900, tHeight = 40;
+  const x = d3.scaleLinear().domain([yMin, yMax]).range([12, tWidth-12]);
+
+  tSvg.append('line').attr('x1',12).attr('x2',tWidth-12).attr('y1',tHeight/2).attr('y2',tHeight/2).attr('stroke','#2A251E').attr('stroke-width',2);
+  tSvg.selectAll('.tick').data(events).join('circle').attr('class','tick')
+    .attr('cx', d => x(d.year)).attr('cy', tHeight/2).attr('r', 2.5)
+    .attr('fill', d => THEATERS[d.theater].hex).attr('opacity', 0.8);
+
+  const brush = d3.brushX().extent([[8,4],[tWidth-8, tHeight-4]]).on('brush end', (event) => {
+    if (!event.selection) return;
+    const [x0,x1] = event.selection.map(x.invert);
+    state.yearRange = [Math.round(x0), Math.round(x1)];
+    document.getElementById('range-label').textContent =
+      (state.yearRange[0]===yMin && state.yearRange[1]===yMax) ? 'Full timeline (1919–1945)' : `Viewing: ${state.yearRange[0]} – ${state.yearRange[1]}`;
+    updateVisibility();
+  });
+  const brushG = tSvg.append('g').call(brush);
+  brushG.call(brush.move, [x(state.yearRange[0]), x(state.yearRange[1])]);
+  brushG.selectAll('.selection').attr('fill','#D9A24C').attr('fill-opacity',0.12).attr('stroke','#8C6B33');
+  brushG.selectAll('.handle').attr('fill','#D9A24C');
+}
+
+window.addEventListener('resize', () => {
+  if (document.body.classList.contains('mode-explore')){ resizeGraph(); renderTimeline(); }
+});
+
+</script>
+</body>
+</html>
