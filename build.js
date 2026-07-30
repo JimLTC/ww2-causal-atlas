@@ -1,6 +1,16 @@
 #!/usr/bin/env node
-/* Generates references.html from js/data.js + js/sources.js.
-   Run after changing either file:  node build-references.js            */
+/* Generates the two files that are built rather than hand-written:
+     references.html                 full bibliography + method
+     ww2-causal-atlas-preview.html   whole project inlined into one file
+
+       node build.js
+
+   RUN THIS BEFORE COMMITTING. Both outputs are derived from index.html and
+   js/{data,sources,geo,world,app}.js. Pushing without rebuilding publishes a
+   site whose citations and single-file build disagree with the source data,
+   and nothing will warn you — GitHub Pages just serves whatever is committed.
+
+   To regenerate the coastline basemap instead, see tools/build-world.py.     */
 const fs = require('fs');
 const path = require('path');
 const root = __dirname;

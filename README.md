@@ -1,105 +1,121 @@
 # WWII Causal Atlas
 
-**Live: https://jimltc.github.io/ww2-causal-atlas/**
+### → **[Open the atlas](https://jimltc.github.io/ww2-causal-atlas/)**
 
-An interactive documentary of the Second World War — watch it unfold reel by reel, or explore the full causal network of every event and how it connects to the next.
+An interactive documentary of the Second World War. Watch it unfold reel by reel like a
+newsreel, or open the whole war as a map you can pull apart — 54 events, 1919 to 1945,
+and the 61 links tying each one to what came next.
 
-**Watch mode** — a scroll-driven "newsreel" journey through six reels (Origins, Blitzkrieg, The War Goes Global, The Turn, Collapse of the Axis, Endgame), each event with a short caption, an illustration, and an optional deep-dive.
+Nothing to install. It runs in a browser.
 
-**Explore mode** — the same 54 events and 61 causal links, in either of two layouts. **World map** puts every event at its real coordinates on a coastline basemap. **Network** discards geography and arranges events purely by cause and effect, left to right by year. Either way you can filter by theater, search, scrub the timeline, and click any event to see what led to it and what it led to.
+---
 
-The two modes are linked: jump from any Watch-mode event straight to its place in the network, or from any network node straight back to its narrated moment.
+## What you can do with it
 
-## Running it locally
+**Watch it.** Six reels, scroll-driven, each event with a caption, an illustration and a
+deep-dive you can open. Between events, a short pill names the thread — *eastern flank
+secured*, *resource pressure*, *agreement exceeded within months* — so the war reads as a
+sequence of consequences rather than a list of dates.
 
-No build step — it's plain HTML/CSS/JS. Just open `index.html` in a browser, or serve the folder:
+**Put it on a world map.** Explore mode places all 54 events at their real coordinates.
+The clustering does the arguing for you: Europe jams into a knot, North Africa strings
+along the Mediterranean, and the Pacific events sit hours of flying time apart.
 
-```bash
-cd ww2-causal-atlas
-python3 -m http.server 8000
-# then open http://localhost:8000
-```
+**Or throw geography away.** Switch to Network and the same events rearrange by cause and
+year — left to right, 1919 to 1945, every arrow a claim about what led to what. Click any
+event to light up only its own causes and consequences.
 
-## File structure
+**Chase anything you doubt.** Every event carries its sources inline. Click through to the
+treaty text, the museum record, the official history.
 
-```
-ww2-causal-atlas/
-├── index.html      # page shell, all CSS, both mode containers
-├── js/
-│   ├── data.js      # events, causal links, act metadata, icon library
-│   ├── sources.js    # source registry, per-event citations, claim-level notes
-│   ├── geo.js        # event coordinates + what each placement claims
-│   ├── world.js      # GENERATED — simplified coastline basemap
-│   └── app.js        # rendering + interaction logic for both modes
-├── build.js        # regenerates references.html + the single-file build
-├── tools/
-│   └── build-world.py   # regenerates js/world.js from Natural Earth
-├── references.html                 # GENERATED — full bibliography & method
-├── ww2-causal-atlas-preview.html   # GENERATED — single-file build
-└── README.md
-```
+**Narrow it down.** Filter by theater, search for anything, or scrub the timeline to watch
+the map fill up year by year.
 
-To add or edit an event, the text lives in `js/data.js` and its citations in `js/sources.js`.
-Then run the build (below) so the generated files pick the change up.
+The two modes are linked both ways — jump from a narrated moment to its node in the graph,
+or from any node back to the reel it belongs to.
 
-### Building
+---
 
-Two files are **generated** and must never be hand-edited — `references.html` and
-`ww2-causal-atlas-preview.html`. Regenerate both after any change to `index.html`,
-`js/data.js`, `js/sources.js`, or `js/app.js`:
+## The six reels
 
-```bash
-node build.js
-```
+| | Reel | Years | Events |
+|---|---|---|---|
+| I | Origins | 1919–1939 | 10 |
+| II | Blitzkrieg | 1939–1941 | 14 |
+| III | The War Goes Global | 1941–1942 | 5 |
+| IV | The Turn | 1942–1943 | 10 |
+| V | Collapse of the Axis | 1944–1945 | 5 |
+| VI | Endgame | 1945 | 10 |
 
-`ww2-causal-atlas-preview.html` is the whole project inlined into one document, for opening
-directly off disk with no server. (D3 is still loaded from a CDN, so the graph needs a network
-connection.)
+Across six theaters: Origins & Diplomacy (11), Western & Central Europe (11), Pacific (15),
+North Africa & Mediterranean (8), Eastern Front (7), China (2).
 
-## Sourcing
+---
 
-Every event carries citations. `js/sources.js` holds a registry of works — each with a title,
-publisher, type (`primary`, `institution`, `scholarship`, `encyclopedia`, `journalism`) and URL —
-plus a map of which sources support which event.
+## Why you can trust it
 
-Citations are attached **at the event level**: the works listed under an event support the claims
-in its caption and detail text. Claims that correct a common error, or that historians actively
-dispute, are additionally called out in `claimNotes` with their own sources, and render as a
-highlighted note in both modes. Sources appear inline under each event's "Read more" in Watch
-mode and in the detail panel in Explore mode, and in full on `references.html`.
+**Every event is cited.** 77 sources — treaty texts from the Avalon Project, official
+histories, museum and national archive records, academic work — attached to the events
+they support and clickable from inside the atlas. The full bibliography, with a plain
+statement of method, is at
+**[References & Method](https://jimltc.github.io/ww2-causal-atlas/references.html)**.
 
-The causal links are **editorial interpretation, not sourced fact** — `references.html` says so
-explicitly and lists all of them so they can be argued with.
+**Common errors are corrected, not repeated.** Nine claims carry their own note explaining
+what most accounts get wrong, with sources. For instance: the Polish Air Force was *not*
+destroyed on the ground in September 1939 — it had dispersed to camouflaged reserve
+airfields and flew for another fortnight. And the first land defeat inflicted on Japanese
+forces was at Milne Bay, not Guadalcanal.
 
-## The map
+**Where historians disagree, it says so.** The claim that the Balkan campaign delayed
+Operation Barbarossa is presented as contested, because it is.
 
-`js/geo.js` holds each event's coordinates plus a `precision` recording what the dot actually
-claims — `site` (it happened here), `decision` (signed or announced here, consequences elsewhere),
-`region` (a campaign; the dot is a representative centre) or `global` (not geographic; the dot is
-symbolic). Approximate placements render with a dashed ring and a hairline back to the point they
-stand for, so the map never implies more precision than it has.
+**The causal arrows are interpretation, not fact.** This is the important caveat. The 61
+links are editorial judgements about how one event bore on another. The events they connect
+are sourced; the assertion that one *led to* another is the atlas's own, and reasonable
+historians would draw the arrows differently. All 61 are listed in the open on the
+references page so they can be argued with.
 
-The basemap is Natural Earth 1:110m land, simplified and embedded in `js/world.js`. **Coastlines
-are modern and no political borders are drawn** — frontiers moved constantly between 1939 and 1945,
-and picking one year's would misrepresent every other.
+---
 
-Every URL was checked to resolve when it was added. If you add a source, check the link.
+## What the map does and doesn't claim
 
-## Deploying
+Not every event is a point on the ground, and the map doesn't pretend otherwise. Each dot
+says what it means:
 
-The site is served by GitHub Pages from the `main` branch, root folder, at
-<https://jimltc.github.io/ww2-causal-atlas/>.
+- **Exact site** (22) — a battle, a landing, an attack. The dot is the thing.
+- **Signed here** (13) — Versailles, Munich, the Tripartite Pact. A room where something was
+  decided; the consequences happened elsewhere.
+- **Wider region** (18) — Barbarossa, the Battle of Britain, island hopping. A representative
+  centre, not a location.
+- **Not local** (1) — the Great Depression, pinned to Wall Street as a symbol. It was worldwide.
 
-Deployment is just a push — Pages rebuilds automatically, usually within a minute:
+The 19 approximate ones are drawn with a dashed ring, and a hairline runs back to the point
+the dot stands for. Coastlines are modern and **no political borders are drawn at all** —
+frontiers moved constantly between 1939 and 1945, and picking any one year's would
+misrepresent every other.
 
-```bash
-node build.js && git add -A && git commit -m "..." && git push
-```
+---
 
-Run `node build.js` **before** committing. `references.html` and
-`ww2-causal-atlas-preview.html` are generated, and pushing without rebuilding
-publishes a site whose citations and single-file build disagree with the source.
+## Known limits
 
-## Content status
+- **English only.** No translations yet.
+- **Needs a live connection.** D3 and the fonts load from a CDN. If those are blocked, the
+  Explore graph won't render.
+- **54 events is a selection, not a survey.** The Holocaust, the war in China after 1937, the
+  Atlantic convoys and the home fronts are all thinner here than their weight deserves.
+- **It's one reading.** See the caveat on causal arrows above.
 
-All six reels are written — 54 events, 61 causal links, full illustrations for every event, and 77 cited sources covering every event plus 9 claim-level notes. Only English is available for now; the data structure is plain text strings per event, so adding a language later means adding a translated copy of `js/data.js` and a language switcher, not restructuring anything.
+---
+
+## Under the hood
+
+Plain HTML, CSS and JavaScript with [D3](https://d3js.org/) for the graph and map. No
+framework, no build step needed to view it — clone the repo and open `index.html`.
+The basemap is [Natural Earth](https://www.naturalearthdata.com/) 1:110m land, simplified
+and embedded.
+
+`ww2-causal-atlas-preview.html` is the entire project inlined into a single file, if you
+want to open it straight off disk.
+
+Reuse terms aren't settled yet, so there's no licence on this repo — if you'd like to build
+on the events, links or citations, please open an issue and ask.
