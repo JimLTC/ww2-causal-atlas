@@ -1,5 +1,7 @@
 # WWII Causal Atlas
 
+**Live: https://jimltc.github.io/ww2-causal-atlas/**
+
 An interactive documentary of the Second World War — watch it unfold reel by reel, or explore the full causal network of every event and how it connects to the next.
 
 **Watch mode** — a scroll-driven "newsreel" journey through six reels (Origins, Blitzkrieg, The War Goes Global, The Turn, Collapse of the Axis, Endgame), each event with a short caption, an illustration, and an optional deep-dive.
@@ -83,20 +85,20 @@ and picking one year's would misrepresent every other.
 
 Every URL was checked to resolve when it was added. If you add a source, check the link.
 
-## Publishing with GitHub Pages
+## Deploying
 
-1. Create a new repository on GitHub named `ww2-causal-atlas` (or push this folder into one you already made).
-2. From inside this folder:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit: WWII Causal Atlas"
-   git branch -M main
-   git remote add origin https://github.com/<your-username>/ww2-causal-atlas.git
-   git push -u origin main
-   ```
-3. On GitHub: go to the repo's **Settings → Pages**, set "Source" to the `main` branch, root folder, and save.
-4. After a minute or two, the site is live at `https://<your-username>.github.io/ww2-causal-atlas/`.
+The site is served by GitHub Pages from the `main` branch, root folder, at
+<https://jimltc.github.io/ww2-causal-atlas/>.
+
+Deployment is just a push — Pages rebuilds automatically, usually within a minute:
+
+```bash
+node build.js && git add -A && git commit -m "..." && git push
+```
+
+Run `node build.js` **before** committing. `references.html` and
+`ww2-causal-atlas-preview.html` are generated, and pushing without rebuilding
+publishes a site whose citations and single-file build disagree with the source.
 
 ## Content status
 
