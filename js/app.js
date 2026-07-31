@@ -2,21 +2,20 @@
    WWII CAUSAL ATLAS — APP LOGIC
    Depends on data.js (ACTS, THEATERS, events, links, connectors, icons)
 ============================================================ */
+applyLocale();   // merge the active language over the English data before rendering
+
 const eventById = Object.fromEntries(events.map(e => [e.id, e]));
 const linksData = links.map(l => ({...l}));
 
 /* ================= SOURCES: shared renderer for both modes ================= */
-const KIND_LABEL = {
-  primary:'primary source', institution:'institution', scholarship:'scholarship',
-  encyclopedia:'reference', journalism:'journalism'
-};
+const kindLabel = kind => t('src.kind.' + kind);
 
 function srcLink(id){
   const s = SOURCES[id];
   if (!s) return '';
   return `<a class="src-link" href="${s.url}" target="_blank" rel="noopener noreferrer">${s.title}</a>`
        + `<span class="src-pub">${s.pub}</span>`
-       + `<span class="src-kind" data-kind="${s.kind}">${KIND_LABEL[s.kind] || s.kind}</span>`;
+       + `<span class="src-kind" data-kind="${s.kind}">${kindLabel(s.kind)}</span>`;
 }
 
 // Returns the "Sources" block for an event: any claim-level notes first, then
@@ -28,15 +27,15 @@ function sourcesHTML(eventId){
   let html = `<div class="src-block">`;
   notes.forEach(n => {
     html += `<div class="src-note">`
-         +  `<div class="src-note-label">On &ldquo;${n.claim}&rdquo;</div>`
+         +  `<div class="src-note-label">${t('src.noteOn', {claim: n.claim})}</div>`
          +  `<p>${n.note}</p>`
          +  `<ul class="src-list">${n.sources.map(s => `<li>${srcLink(s)}</li>`).join('')}</ul>`
          +  `</div>`;
   });
   if (ids.length){
-    html += `<div class="src-head">Sources</div>`
+    html += `<div class="src-head">${t('src.sources')}</div>`
          +  `<ul class="src-list">${ids.map(s => `<li>${srcLink(s)}</li>`).join('')}</ul>`
-         +  `<a class="src-all" href="references.html" target="_blank" rel="noopener">All references &amp; method &rarr;</a>`;
+         +  `<a class="src-all" href="references.html" target="_blank" rel="noopener">${t('src.all')}</a>`;
   }
   return html + `</div>`;
 }
@@ -52,11 +51,11 @@ ACTS.forEach((act, actIdx) => {
   hero.dataset.act = act.n;
   hero.innerHTML = `
     <div class="filmstrip-edge top" aria-hidden="true"></div>
-    <div class="reel-label">Reel ${toRoman(act.n)} of VI</div>
+    <div class="reel-label">${t('watch.reelOf', {roman: toRoman(act.n)})}</div>
     <h1>${act.title}</h1>
     <div class="years">${act.years}</div>
     <p class="dek">${act.dek}</p>
-    <div class="scroll-cue"><span>Scroll to continue</span><span class="arrow"></span></div>
+    <div class="scroll-cue"><span>${t('watch.scrollCue')}</span><span class="arrow"></span></div>
     <div class="filmstrip-edge bottom" aria-hidden="true"></div>
   `;
   reel.appendChild(hero);
@@ -85,13 +84,13 @@ ACTS.forEach((act, actIdx) => {
     sec.innerHTML = `
       <div class="event-art">${icons[e.icon] || icons.spark}</div>
       <div class="event-copy">
-        <div class="reel-meta"><span class="frame">FRAME ${e.frame}</span><span class="dot"></span><span class="theater-tag">${THEATERS[e.theater].label}</span></div>
+        <div class="reel-meta"><span class="frame">${t('watch.frame')} ${e.frame}</span><span class="dot"></span><span class="theater-tag">${THEATERS[e.theater].label}</span></div>
         <span class="date-stamp">${e.date}</span>
         <h2>${e.title}</h2>
         <p class="caption">${e.caption}</p>
         <div class="btn-row">
-          <button class="read-more-btn" data-target="${e.id}-detail" aria-expanded="false">+ Read more</button>
-          <button class="view-network-btn" data-jump="${e.id}">View on network map →</button>
+          <button class="read-more-btn" data-target="${e.id}-detail" aria-expanded="false">${t('watch.readMore')}</button>
+          <button class="view-network-btn" data-jump="${e.id}">${t('watch.viewNetwork')}</button>
         </div>
         <div class="detail" id="${e.id}-detail">${e.detail}${sourcesHTML(e.id)}</div>
       </div>
@@ -104,7 +103,7 @@ ACTS.forEach((act, actIdx) => {
     const transition = document.createElement('div');
     transition.className = 'reel-transition';
     transition.dataset.act = act.n;
-    transition.innerHTML = `<div class="eyebrow">Reel ${toRoman(act.n)} complete</div><h4>Next: Reel ${toRoman(next.n)} — ${next.title}</h4>`;
+    transition.innerHTML = `<div class="eyebrow">${t('watch.reelComplete', {roman: toRoman(act.n)})}</div><h4>${t('watch.next', {roman: toRoman(next.n), title: next.title})}</h4>`;
     reel.appendChild(transition);
   }
 });
@@ -113,15 +112,15 @@ ACTS.forEach((act, actIdx) => {
 const recap = document.createElement('section');
 recap.className = 'recap';
 recap.innerHTML = `
-  <div class="eyebrow">End of the Series</div>
-  <div class="recap-title">THE WHOLE WAR, ONE MAP</div>
-  <p class="recap-sub">54 events, six years, every theater — laid out as a single network of cause and effect. Explore it freely: filter by theater, search for anything, or trace how any one event led to the next.</p>
+  <div class="eyebrow">${t('recap.eyebrow')}</div>
+  <div class="recap-title">${t('recap.title')}</div>
+  <p class="recap-sub">${t('recap.sub')}</p>
   <div class="filmstrip">
     ${events.map(e => `<div class="frame-card" data-jump="watch-${e.id}"><div class="fc-date">${e.date}</div><div class="fc-title">${e.title}</div></div>`).join('')}
   </div>
   <div class="next-act">
-    <button class="cta" id="toExploreCta">Explore the full network →</button>
-    <p>Every event above, plus every causal link between them, mapped in one interactive graph.</p>
+    <button class="cta" id="toExploreCta">${t('recap.cta')}</button>
+    <p>${t('recap.ctaSub')}</p>
   </div>
 `;
 reel.appendChild(recap);
@@ -135,7 +134,7 @@ document.querySelectorAll('.read-more-btn').forEach(btn => {
     const target = document.getElementById(btn.dataset.target);
     const open = target.classList.toggle('open');
     btn.setAttribute('aria-expanded', open);
-    btn.textContent = open ? '− Close' : '+ Read more';
+    btn.textContent = open ? t('watch.close') : t('watch.readMore');
   });
 });
 document.querySelectorAll('.frame-card').forEach(card => {
@@ -158,7 +157,7 @@ const labelObserver = new IntersectionObserver((entries) => {
     if (entry.isIntersecting){
       const actN = Number(entry.target.dataset.act);
       const act = ACTS.find(a => a.n === actN);
-      if (act) navActLabel.textContent = `REEL ${toRoman(actN)} — ${act.title}`;
+      if (act) navActLabel.textContent = t('nav.reel', {roman: toRoman(actN), title: act.title});
     }
   });
 }, {threshold:0.5});
@@ -182,7 +181,7 @@ function setMode(mode){
     document.body.classList.remove('mode-watch');
     document.body.classList.add('mode-explore');
     exploreBtn.classList.add('active'); watchBtn.classList.remove('active');
-    navActLabel.textContent = 'EXPLORE — FULL NETWORK';
+    navActLabel.textContent = t('nav.exploreLabel');
     if (!graphInitialized){ initGraph(); graphInitialized = true; }
     resizeGraph(); renderTimeline();
   } else {
@@ -214,7 +213,7 @@ function renderTheaterList(){
 }
 renderTheaterList();
 
-document.getElementById('ex-legend').innerHTML = ACTS.map(a => `Reel ${toRoman(a.n)} — ${a.title} (${a.years})`).join('<br>');
+document.getElementById('ex-legend').innerHTML = ACTS.map(a => t('ex.legendReel', {roman: toRoman(a.n), title: a.title, years: a.years})).join('<br>');
 
 document.getElementById('reset-btn').onclick = () => {
   state.activeTheaters = new Set(Object.keys(THEATERS));
@@ -224,10 +223,7 @@ document.getElementById('reset-btn').onclick = () => {
 };
 document.getElementById('search').oninput = (e) => { state.search = e.target.value.trim().toLowerCase(); updateVisibility(); };
 
-const LAYOUT_HINT = {
-  map:'Events sit at their real coordinates. Dashed rings mark events that span a region or aren’t geographic at all — a hairline runs back to the point the dot stands for. Causal arrows fade back here; click any event to light up its own.',
-  network:'Events arranged by cause and effect, left to right by year. Geography is discarded — position means nothing but time and connection.'
-};
+const LAYOUT_HINT = {map: t('hint.map'), network: t('hint.network')};
 document.querySelectorAll('.layout-toggle button').forEach(btn => {
   btn.addEventListener('click', () => {
     layout = btn.dataset.layout;
@@ -439,8 +435,8 @@ function applyLayout(){
 
 function xForYear(year){
   const w = svg.node().clientWidth || 900;
-  const t = (year - 1919) / (1945 - 1919);
-  return 50 + t * (w - 100);
+  const frac = (year - 1919) / (1945 - 1919);
+  return 50 + frac * (w - 100);
 }
 function resizeGraph(){
   if (!svg) return;
@@ -450,8 +446,8 @@ function centerOnNode(id){
   const d = nodesData && nodesData.find(n => n.id === id);
   if (!d || !svg) return;
   const w = svg.node().clientWidth, h = svg.node().clientHeight;
-  const t = d3.zoomIdentity.translate(w/2 - (d.x||w/2), h/2 - (d.y||h/2));
-  svg.transition().duration(500).call(d3.zoom().transform, t);
+  const tf = d3.zoomIdentity.translate(w/2 - (d.x||w/2), h/2 - (d.y||h/2));
+  svg.transition().duration(500).call(d3.zoom().transform, tf);
 }
 
 function eventVisible(e){
@@ -477,29 +473,29 @@ function selectEvent(id){
   showLabels([id]);
   const panel = document.getElementById('detail-panel');
   if (!id){
-    panel.innerHTML = `<div class="ex-empty"><span class="stamp">NO FILE SELECTED</span><p>Click any event on the map to see its description and its causal links — what led here, and what it led to.</p></div>`;
+    panel.innerHTML = `<div class="ex-empty"><span class="stamp">${t('ex.emptyStamp')}</span><p>${t('ex.emptyText')}</p></div>`;
     return;
   }
   const e = eventById[id];
-  const t = THEATERS[e.theater];
+  const th = THEATERS[e.theater];
   const causesOf = linksData.filter(l => (l.target.id||l.target) === id).map(l => ({ev: eventById[l.source.id||l.source], label:l.label}));
   const leadsTo = linksData.filter(l => (l.source.id||l.source) === id).map(l => ({ev: eventById[l.target.id||l.target], label:l.label}));
 
   let html = `
     <div class="ex-date">${e.date}</div>
-    <div class="ex-theater-badge" style="background:${t.hex}22;color:${t.hex};border:1px solid ${t.hex}55">${t.label}</div>
+    <div class="ex-theater-badge" style="background:${th.hex}22;color:${th.hex};border:1px solid ${th.hex}55">${th.label}</div>
     <h3 class="ex-title">${e.title}</h3>
     ${placeHTML(id)}
     <p class="ex-desc">${e.caption}</p>
-    <button class="ex-watch-btn" id="ex-watch-jump">▶ Watch this moment (Reel ${toRoman(e.act)})</button>
+    <button class="ex-watch-btn" id="ex-watch-jump">${t('ex.watchThis', {roman: toRoman(e.act)})}</button>
   `;
   if (causesOf.length){
-    html += `<div class="ex-rel-block"><h3>← Followed from</h3>`;
+    html += `<div class="ex-rel-block"><h3>${t('ex.followedFrom')}</h3>`;
     causesOf.forEach(r => { html += `<div class="ex-rel-item" data-id="${r.ev.id}"><span class="ex-rel-arrow">←</span><span><span class="ex-rel-title">${r.ev.title}</span><span class="ex-rel-label">${r.label}</span></span></div>`; });
     html += `</div>`;
   }
   if (leadsTo.length){
-    html += `<div class="ex-rel-block"><h3>→ Led to</h3>`;
+    html += `<div class="ex-rel-block"><h3>${t('ex.ledTo')}</h3>`;
     leadsTo.forEach(r => { html += `<div class="ex-rel-item" data-id="${r.ev.id}"><span class="ex-rel-arrow">→</span><span><span class="ex-rel-title">${r.ev.title}</span><span class="ex-rel-label">${r.label}</span></span></div>`; });
     html += `</div>`;
   }
@@ -527,7 +523,7 @@ function renderTimeline(){
     const [x0,x1] = event.selection.map(x.invert);
     state.yearRange = [Math.round(x0), Math.round(x1)];
     document.getElementById('range-label').textContent =
-      (state.yearRange[0]===yMin && state.yearRange[1]===yMax) ? 'Full timeline (1919–1945)' : `Viewing: ${state.yearRange[0]} – ${state.yearRange[1]}`;
+      (state.yearRange[0]===yMin && state.yearRange[1]===yMax) ? t('ex.fullTimeline') : t('ex.viewing', {from: state.yearRange[0], to: state.yearRange[1]});
     updateVisibility();
   });
   const brushG = tSvg.append('g').call(brush);

@@ -39,6 +39,43 @@
     font-family:'IBM Plex Mono',monospace; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; }
   nav .mode-toggle button.active{background:var(--amber); color:#1a1408;}
 
+  /* ---- language switcher ---- */
+  #langSwitcher select{ background:var(--bg-2); color:var(--ink-dim); border:1px solid var(--line);
+    border-radius:3px; padding:6px 8px; cursor:pointer; font-family:'IBM Plex Mono',monospace;
+    font-size:10px; letter-spacing:1px; text-transform:uppercase; outline:none; }
+  #langSwitcher select:hover, #langSwitcher select:focus-visible{ border-color:var(--amber-dim); color:var(--amber); }
+
+  /* ---- unreviewed-translation notice ---- */
+  .tnotice{ position:fixed; left:0; right:0; bottom:0; z-index:400; background:#241a10;
+    border-top:1px solid var(--amber-dim); box-shadow:0 -8px 24px rgba(0,0,0,.5); }
+  .tnotice-in{ max-width:1100px; margin:0 auto; padding:11px 20px; display:flex; align-items:center;
+    gap:14px; font-family:'Inter',sans-serif; }
+  .tnotice-mark{ color:var(--amber); font-size:15px; flex-shrink:0; }
+  .tnotice p{ flex:1; font-size:12.5px; line-height:1.5; color:var(--ink-dim); }
+  .tnotice p strong{ color:var(--ink); font-weight:600; }
+  .tnotice-en{ flex-shrink:0; font-size:11.5px; color:var(--amber); text-decoration:none;
+    border:1px solid var(--amber-dim); border-radius:3px; padding:5px 11px; white-space:nowrap; }
+  .tnotice-en:hover{ background:rgba(217,162,76,.12); }
+  .tnotice-x{ flex-shrink:0; background:none; border:none; color:var(--ink-faint); cursor:pointer; font-size:14px; padding:4px; }
+  .tnotice-x:hover{ color:var(--ink); }
+  body.has-tnotice .ex-hint{ bottom:72px; }
+  @media (max-width:720px){ .tnotice-in{ flex-wrap:wrap; gap:9px; } .tnotice p{ flex-basis:100%; } }
+
+  /* ---- CJK: Bebas Neue has no Han glyphs, so swap the display face ---- */
+  html[lang^="zh"] body,
+  html[lang^="zh"] .act-intro p,
+  html[lang^="zh"] .event-copy .caption,
+  html[lang^="zh"] .hero .dek{ font-family:'Noto Serif TC','Source Serif 4',serif; }
+  html[lang^="zh"] .hero h1,
+  html[lang^="zh"] .event-copy h2,
+  html[lang^="zh"] .recap-title,
+  html[lang^="zh"] .reel-transition h4{ font-family:'Noto Sans TC','Bebas Neue',sans-serif; font-weight:900; letter-spacing:2px; }
+  html[lang^="zh"] .hero h1{ font-size:clamp(40px,8vw,88px); line-height:1.12; }
+  html[lang^="zh"] .event-copy h2{ font-size:clamp(23px,3.4vw,32px); line-height:1.3; }
+  /* monospace UI chrome keeps Plex for latin but needs a CJK fallback */
+  html[lang^="zh"] nav, html[lang^="zh"] .reel-meta, html[lang^="zh"] .ex-filters h2,
+  html[lang^="zh"] .reel-label, html[lang^="zh"] .act-intro .eyebrow{ font-family:'IBM Plex Mono','Noto Sans TC',monospace; letter-spacing:.5px; }
+
   .progress-rail{ position:fixed; left:0; top:58px; bottom:0; width:30px; z-index:150; display:flex; flex-direction:column; align-items:center; padding:40px 0 20px; }
   body.mode-explore .progress-rail{ display:none; }
   .progress-rail .track{position:relative; width:2px; flex:1; background:var(--line);}
@@ -243,10 +280,11 @@
 <nav>
   <div class="brand">WWII CAUSAL ATLAS · <strong id="navActLabel">REEL I — ORIGINS</strong></div>
   <div class="nav-right">
-    <a class="nav-refs" href="references.html">Sources</a>
+    <span id="langSwitcher"></span>
+    <a class="nav-refs" href="references.html" data-i18n="nav.sources">Sources</a>
     <div class="mode-toggle" role="group" aria-label="View mode">
-      <button class="active" id="watchBtn">Watch</button>
-      <button id="exploreBtn">Explore</button>
+      <button class="active" id="watchBtn" data-i18n="nav.watch">Watch</button>
+      <button id="exploreBtn" data-i18n="nav.explore">Explore</button>
     </div>
   </div>
 </nav>
@@ -256,21 +294,21 @@
 
 <div id="exploreRoot">
   <aside class="ex-filters">
-    <h2>Layout</h2>
+    <h2 data-i18n="ex.layout">Layout</h2>
     <div class="layout-toggle" role="group" aria-label="Graph layout">
-      <button data-layout="map" class="active">World map</button>
-      <button data-layout="network">Network</button>
+      <button data-layout="map" class="active" data-i18n="ex.worldMap">World map</button>
+      <button data-layout="network" data-i18n="ex.network">Network</button>
     </div>
     <p class="layout-hint" id="layoutHint"></p>
-    <div class="ex-search"><h2>Search</h2><input type="text" id="search" placeholder="e.g. Barbarossa, Pearl Harbor..."></div>
-    <h2>Theater</h2>
+    <div class="ex-search"><h2 data-i18n="ex.search">Search</h2><input type="text" id="search" data-i18n-ph="ex.searchPlaceholder" placeholder="e.g. Barbarossa, Pearl Harbor..."></div>
+    <h2 data-i18n="ex.theater">Theater</h2>
     <div id="theater-list"></div>
-    <button class="ex-reset" id="reset-btn">↺ Reset filters</button>
+    <button class="ex-reset" id="reset-btn" data-i18n="ex.reset">↺ Reset filters</button>
     <div class="ex-legend" id="ex-legend"></div>
   </aside>
   <main class="ex-main">
     <svg id="graph-svg"></svg>
-    <div class="ex-hint">Drag to move · Scroll to zoom · Click a node for detail</div>
+    <div class="ex-hint" data-i18n="ex.hint">Drag to move · Scroll to zoom · Click a node for detail</div>
   </main>
   <aside class="ex-detail" id="detail-panel">
     <div class="ex-empty"><span class="stamp">NO FILE SELECTED</span><p>Click any event on the map to see its description and its causal links.</p></div>
@@ -285,6 +323,8 @@
 <script src="js/sources.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/world.js"></script>
+<script src="js/i18n/base.js"></script>
+<script src="js/i18n/es.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
