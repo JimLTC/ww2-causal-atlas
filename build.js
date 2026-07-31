@@ -245,7 +245,8 @@ console.log(`references.html written — ${events.length} events, ${Object.keys(
 /* ---- single-file build: inline data.js + sources.js + app.js into index.html ---- */
 const shell = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const FILES = ['js/data.js', 'js/sources.js', 'js/geo.js', 'js/world.js',
-               'js/i18n/base.js', 'js/i18n/es.js', 'js/app.js'];
+               'js/i18n/base.js', 'js/i18n/es.js', 'js/i18n/fr.js',
+               'js/i18n/de.js', 'js/i18n/zh-Hant.js', 'js/app.js'];
 const SCRIPTS = new RegExp(FILES.map(f => '<script src="' + f.replace('/', '\\/').replace('.', '\\.') + '"><\\/script>').join('\\s*'));
 if (!SCRIPTS.test(shell)) {
   console.error('build: could not find the three <script src> tags in index.html — aborting preview build.');
