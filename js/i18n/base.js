@@ -131,11 +131,69 @@ function t(key, vars){
   return s;
 }
 
+/* ---- on-demand locale loading ----
+   Only the language actually being read is fetched. Page weight is therefore
+   independent of how many languages exist — adding a twentieth costs existing
+   visitors nothing. In the inlined single-file build every locale is already
+   present, so this resolves immediately.                                     */
+function loadLocale(code){
+  if (code === 'en' || LOCALES[code]) return Promise.resolve();
+  if (!LANGS.some(l => l.code === code)) return Promise.resolve();
+  return new Promise(resolve => {
+    const s = document.createElement('script');
+    s.src = 'js/i18n/' + code + '.js';
+    s.onload = () => resolve();
+    // A missing or broken pack must not take the page down: fall back to English.
+    s.onerror = () => { console.warn('locale failed to load, falling back to English:', code); resolve(); };
+    document.head.appendChild(s);
+  });
+}
+
+/* ---- English snapshot ----
+   applyLocale() merges translations *over* the shared data in place. Without a
+   pristine copy, switching es -> fr would leave Spanish behind wherever French
+   is missing a key, instead of falling back to English. Snapshot once, restore
+   before each switch.                                                        */
+let EN_SNAPSHOT = null;
+function snapshotEnglish(){
+  const pick = (o, keys) => Object.fromEntries(keys.map(k => [k, o[k]]));
+  EN_SNAPSHOT = {
+    acts:      ACTS.map(a => pick(a, ['title','dek','eyebrow','intro'])),
+    theaters:  Object.fromEntries(Object.entries(THEATERS).map(([k,v]) => [k, v.label])),
+    events:    Object.fromEntries(events.map(e => [e.id, pick(e, ['title','date','caption','detail'])])),
+    links:     links.map(l => l.label),
+    connectors: Object.assign({}, connectors),
+    geo:       typeof EVENT_GEO === 'undefined' ? {}
+                 : Object.fromEntries(Object.entries(EVENT_GEO).map(([k,v]) => [k, v.place])),
+    precision: typeof GEO_PRECISION === 'undefined' ? {}
+                 : Object.fromEntries(Object.entries(GEO_PRECISION).map(([k,v]) => [k, pick(v,['label','blurb'])])),
+    notes:     typeof claimNotes === 'undefined' ? {}
+                 : Object.fromEntries(Object.entries(claimNotes).map(([k,arr]) =>
+                     [k, arr.map(n => pick(n, ['claim','note']))])),
+  };
+}
+function restoreEnglish(){
+  if (!EN_SNAPSHOT) return;
+  ACTS.forEach((a, i) => Object.assign(a, EN_SNAPSHOT.acts[i]));
+  Object.entries(EN_SNAPSHOT.theaters).forEach(([k,v]) => { THEATERS[k].label = v; });
+  events.forEach(e => Object.assign(e, EN_SNAPSHOT.events[e.id]));
+  links.forEach((l, i) => { l.label = EN_SNAPSHOT.links[i]; });
+  Object.assign(connectors, EN_SNAPSHOT.connectors);
+  if (typeof EVENT_GEO !== 'undefined')
+    Object.entries(EN_SNAPSHOT.geo).forEach(([k,v]) => { EVENT_GEO[k].place = v; });
+  if (typeof GEO_PRECISION !== 'undefined')
+    Object.entries(EN_SNAPSHOT.precision).forEach(([k,v]) => Object.assign(GEO_PRECISION[k], v));
+  if (typeof claimNotes !== 'undefined')
+    Object.entries(EN_SNAPSHOT.notes).forEach(([k,arr]) =>
+      arr.forEach((n,i) => Object.assign(claimNotes[k][i], n)));
+}
+
 /* ---- merge the active locale over the English data, in place ----
    Only keys the locale actually provides are overwritten, so partial
    translations fall back to English rather than rendering empty.        */
 function applyLocale(){
   document.documentElement.lang = LANG;
+  if (!EN_SNAPSHOT) snapshotEnglish(); else restoreEnglish();
   const L = LOCALES[LANG];
   if (L){
     if (L.acts)     ACTS.forEach(a => L.acts[a.n] && Object.assign(a, L.acts[a.n]));
@@ -180,11 +238,18 @@ function applyStaticStrings(){
 function setLang(code){
   if (code === LANG) return;
   try { localStorage.setItem('wwii-atlas-lang', code); } catch(_){}
-  // Watch mode and the D3 graph are both built once at load, so a reload is
-  // the reliable way to re-render everything in the new language.
-  const u = new URL(location.href);
-  u.searchParams.set('lang', code);
-  location.href = u.toString();
+  const sel = document.getElementById('langSelect');
+  if (sel) sel.disabled = true;
+  loadLocale(code).then(() => {
+    LANG = LOCALES[code] || code === 'en' ? code : LANG;   // stay put if the pack failed
+    const u = new URL(location.href);
+    u.searchParams.set('lang', LANG);
+    history.replaceState(null, '', u);
+    applyLocale();
+    // app.js registers this once it has built the page
+    if (typeof window.rerenderAll === 'function') window.rerenderAll();
+    if (sel) sel.disabled = false;
+  });
 }
 
 function renderLangSwitcher(){

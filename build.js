@@ -244,10 +244,19 @@ console.log(`references.html written — ${events.length} events, ${Object.keys(
 
 /* ---- single-file build: inline data.js + sources.js + app.js into index.html ---- */
 const shell = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+// Tags to replace in index.html (it now loads only the base runtime; locale
+// packs are fetched on demand at runtime).
+const TAGS = ['js/data.js', 'js/sources.js', 'js/geo.js', 'js/world.js',
+              'js/i18n/base.js', 'js/app.js'];
+// What actually gets inlined. The standalone build carries every language,
+// because its whole point is to work with no server and no further requests —
+// on-demand loading would have nothing to load from.
 const FILES = ['js/data.js', 'js/sources.js', 'js/geo.js', 'js/world.js',
                'js/i18n/base.js', 'js/i18n/es.js', 'js/i18n/fr.js',
                'js/i18n/de.js', 'js/i18n/zh-Hant.js', 'js/app.js'];
-const SCRIPTS = new RegExp(FILES.map(f => '<script src="' + f.replace('/', '\\/').replace('.', '\\.') + '"><\\/script>').join('\\s*'));
+const SCRIPTS = new RegExp(TAGS.map(f =>
+  '<script src="' + f.replace(/[/.]/g, m => '\\' + m) + '"><\\/script>').join('\\s*'));
+
 if (!SCRIPTS.test(shell)) {
   console.error('build: could not find the three <script src> tags in index.html — aborting preview build.');
   process.exit(1);

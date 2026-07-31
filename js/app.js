@@ -2,8 +2,6 @@
    WWII CAUSAL ATLAS — APP LOGIC
    Depends on data.js (ACTS, THEATERS, events, links, connectors, icons)
 ============================================================ */
-applyLocale();   // merge the active language over the English data before rendering
-
 const eventById = Object.fromEntries(events.map(e => [e.id, e]));
 const linksData = links.map(l => ({...l}));
 
@@ -41,9 +39,33 @@ function sourcesHTML(eventId){
 }
 
 /* ================= RENDER: WATCH MODE (all reels, continuous scroll) ================= */
-const reel = document.getElementById('reel');
+function toRoman(n){
+  return ['','I','II','III','IV','V','VI'][n] || String(n);
+}
 
-ACTS.forEach((act, actIdx) => {
+const reel = document.getElementById('reel');
+const navActLabel = document.getElementById('navActLabel');
+
+// reveal-on-scroll for events and connector pills
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+}, {threshold:0.22});
+// nav label follows the current reel while scrolling
+const labelObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting){
+      const actN = Number(entry.target.dataset.act);
+      const act = ACTS.find(a => a.n === actN);
+      if (act) navActLabel.textContent = t('nav.reel', {roman: toRoman(actN), title: act.title});
+    }
+  });
+}, {threshold:0.5});
+
+// Rebuilds the whole reel. Called on boot and again whenever the language
+// changes, so switching re-renders in place instead of reloading the page.
+function renderWatch(){
+  reel.innerHTML = '';
+  ACTS.forEach((act, actIdx) => {
   const actEvents = events.filter(e => e.act === act.n);
 
   const hero = document.createElement('header');
@@ -125,10 +147,6 @@ recap.innerHTML = `
 `;
 reel.appendChild(recap);
 
-function toRoman(n){
-  return ['','I','II','III','IV','V','VI'][n] || String(n);
-}
-
 document.querySelectorAll('.read-more-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const target = document.getElementById(btn.dataset.target);
@@ -145,23 +163,9 @@ document.querySelectorAll('.view-network-btn').forEach(btn => {
 });
 document.getElementById('toExploreCta').addEventListener('click', () => setMode('explore'));
 
-const io = new IntersectionObserver((entries) => {
-  entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
-}, {threshold:0.22});
 document.querySelectorAll('.event, .link-connector').forEach(el => io.observe(el));
-
-// nav label follows current reel while scrolling
-const navActLabel = document.getElementById('navActLabel');
-const labelObserver = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting){
-      const actN = Number(entry.target.dataset.act);
-      const act = ACTS.find(a => a.n === actN);
-      if (act) navActLabel.textContent = t('nav.reel', {roman: toRoman(actN), title: act.title});
-    }
-  });
-}, {threshold:0.5});
-document.querySelectorAll('.hero').forEach(el => labelObserver.observe(el));
+  document.querySelectorAll('.hero').forEach(el => labelObserver.observe(el));
+}
 
 const progressFill = document.getElementById('progressFill');
 window.addEventListener('scroll', () => {
@@ -213,7 +217,11 @@ function renderTheaterList(){
 }
 renderTheaterList();
 
-document.getElementById('ex-legend').innerHTML = ACTS.map(a => t('ex.legendReel', {roman: toRoman(a.n), title: a.title, years: a.years})).join('<br>');
+function renderLegend(){
+  document.getElementById('ex-legend').innerHTML =
+    ACTS.map(a => t('ex.legendReel', {roman: toRoman(a.n), title: a.title, years: a.years})).join('<br>');
+}
+renderLegend();
 
 document.getElementById('reset-btn').onclick = () => {
   state.activeTheaters = new Set(Object.keys(THEATERS));
@@ -223,16 +231,16 @@ document.getElementById('reset-btn').onclick = () => {
 };
 document.getElementById('search').oninput = (e) => { state.search = e.target.value.trim().toLowerCase(); updateVisibility(); };
 
-const LAYOUT_HINT = {map: t('hint.map'), network: t('hint.network')};
+const layoutHint = () => ({map: t('hint.map'), network: t('hint.network')});
 document.querySelectorAll('.layout-toggle button').forEach(btn => {
   btn.addEventListener('click', () => {
     layout = btn.dataset.layout;
-    document.getElementById('layoutHint').textContent = LAYOUT_HINT[layout];
+    document.getElementById('layoutHint').textContent = layoutHint()[layout];
     applyLayout();
     if (state.selected) selectEvent(state.selected);
   });
 });
-document.getElementById('layoutHint').textContent = LAYOUT_HINT.map;
+document.getElementById('layoutHint').textContent = layoutHint().map;
 
 /* ================= EXPLORE MODE: GRAPH ================= */
 let svg, gRoot, simulation, nodesData, linkSel, nodeSel, labelSel;
@@ -464,6 +472,21 @@ function updateVisibility(){
   linkSel.classed('link-dim', d => !(visibleIds.has(d.source.id) && visibleIds.has(d.target.id)));
 }
 
+/* Re-labels everything in Explore mode after a language change. The graph
+   itself (positions, links, selection) is untouched — only text is replaced. */
+function refreshExploreText(){
+  renderLegend();
+  renderTheaterList();
+  document.getElementById('layoutHint').textContent = layoutHint()[layout];
+  if (labelSel) labelSel.text(d => {
+    const e = eventById[d.id];
+    return e.title.length > 26 ? e.title.slice(0,25) + '…' : e.title;
+  });
+  if (nodeSel) nodeSel.select('title').text(d => eventById[d.id].title);
+  if (svg) renderTimeline();
+  selectEvent(state.selected);
+}
+
 /* ================= EXPLORE MODE: DETAIL PANEL ================= */
 function selectEvent(id){
   state.selected = id;
@@ -534,4 +557,18 @@ function renderTimeline(){
 
 window.addEventListener('resize', () => {
   if (document.body.classList.contains('mode-explore')){ resizeGraph(); renderTimeline(); }
+});
+
+/* ================= BOOT =================
+   Fetch only the active language pack, then build the page. Registers
+   rerenderAll() so the switcher can change language in place, with no reload. */
+window.rerenderAll = function(){
+  renderWatch();
+  if (graphInitialized) refreshExploreText();
+  applyStaticStrings();
+};
+
+loadLocale(LANG).then(() => {
+  applyLocale();
+  renderWatch();
 });

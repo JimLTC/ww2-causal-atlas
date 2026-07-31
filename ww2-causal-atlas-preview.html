@@ -1692,11 +1692,69 @@ function t(key, vars){
   return s;
 }
 
+/* ---- on-demand locale loading ----
+   Only the language actually being read is fetched. Page weight is therefore
+   independent of how many languages exist — adding a twentieth costs existing
+   visitors nothing. In the inlined single-file build every locale is already
+   present, so this resolves immediately.                                     */
+function loadLocale(code){
+  if (code === 'en' || LOCALES[code]) return Promise.resolve();
+  if (!LANGS.some(l => l.code === code)) return Promise.resolve();
+  return new Promise(resolve => {
+    const s = document.createElement('script');
+    s.src = 'js/i18n/' + code + '.js';
+    s.onload = () => resolve();
+    // A missing or broken pack must not take the page down: fall back to English.
+    s.onerror = () => { console.warn('locale failed to load, falling back to English:', code); resolve(); };
+    document.head.appendChild(s);
+  });
+}
+
+/* ---- English snapshot ----
+   applyLocale() merges translations *over* the shared data in place. Without a
+   pristine copy, switching es -> fr would leave Spanish behind wherever French
+   is missing a key, instead of falling back to English. Snapshot once, restore
+   before each switch.                                                        */
+let EN_SNAPSHOT = null;
+function snapshotEnglish(){
+  const pick = (o, keys) => Object.fromEntries(keys.map(k => [k, o[k]]));
+  EN_SNAPSHOT = {
+    acts:      ACTS.map(a => pick(a, ['title','dek','eyebrow','intro'])),
+    theaters:  Object.fromEntries(Object.entries(THEATERS).map(([k,v]) => [k, v.label])),
+    events:    Object.fromEntries(events.map(e => [e.id, pick(e, ['title','date','caption','detail'])])),
+    links:     links.map(l => l.label),
+    connectors: Object.assign({}, connectors),
+    geo:       typeof EVENT_GEO === 'undefined' ? {}
+                 : Object.fromEntries(Object.entries(EVENT_GEO).map(([k,v]) => [k, v.place])),
+    precision: typeof GEO_PRECISION === 'undefined' ? {}
+                 : Object.fromEntries(Object.entries(GEO_PRECISION).map(([k,v]) => [k, pick(v,['label','blurb'])])),
+    notes:     typeof claimNotes === 'undefined' ? {}
+                 : Object.fromEntries(Object.entries(claimNotes).map(([k,arr]) =>
+                     [k, arr.map(n => pick(n, ['claim','note']))])),
+  };
+}
+function restoreEnglish(){
+  if (!EN_SNAPSHOT) return;
+  ACTS.forEach((a, i) => Object.assign(a, EN_SNAPSHOT.acts[i]));
+  Object.entries(EN_SNAPSHOT.theaters).forEach(([k,v]) => { THEATERS[k].label = v; });
+  events.forEach(e => Object.assign(e, EN_SNAPSHOT.events[e.id]));
+  links.forEach((l, i) => { l.label = EN_SNAPSHOT.links[i]; });
+  Object.assign(connectors, EN_SNAPSHOT.connectors);
+  if (typeof EVENT_GEO !== 'undefined')
+    Object.entries(EN_SNAPSHOT.geo).forEach(([k,v]) => { EVENT_GEO[k].place = v; });
+  if (typeof GEO_PRECISION !== 'undefined')
+    Object.entries(EN_SNAPSHOT.precision).forEach(([k,v]) => Object.assign(GEO_PRECISION[k], v));
+  if (typeof claimNotes !== 'undefined')
+    Object.entries(EN_SNAPSHOT.notes).forEach(([k,arr]) =>
+      arr.forEach((n,i) => Object.assign(claimNotes[k][i], n)));
+}
+
 /* ---- merge the active locale over the English data, in place ----
    Only keys the locale actually provides are overwritten, so partial
    translations fall back to English rather than rendering empty.        */
 function applyLocale(){
   document.documentElement.lang = LANG;
+  if (!EN_SNAPSHOT) snapshotEnglish(); else restoreEnglish();
   const L = LOCALES[LANG];
   if (L){
     if (L.acts)     ACTS.forEach(a => L.acts[a.n] && Object.assign(a, L.acts[a.n]));
@@ -1741,11 +1799,18 @@ function applyStaticStrings(){
 function setLang(code){
   if (code === LANG) return;
   try { localStorage.setItem('wwii-atlas-lang', code); } catch(_){}
-  // Watch mode and the D3 graph are both built once at load, so a reload is
-  // the reliable way to re-render everything in the new language.
-  const u = new URL(location.href);
-  u.searchParams.set('lang', code);
-  location.href = u.toString();
+  const sel = document.getElementById('langSelect');
+  if (sel) sel.disabled = true;
+  loadLocale(code).then(() => {
+    LANG = LOCALES[code] || code === 'en' ? code : LANG;   // stay put if the pack failed
+    const u = new URL(location.href);
+    u.searchParams.set('lang', LANG);
+    history.replaceState(null, '', u);
+    applyLocale();
+    // app.js registers this once it has built the page
+    if (typeof window.rerenderAll === 'function') window.rerenderAll();
+    if (sel) sel.disabled = false;
+  });
 }
 
 function renderLangSwitcher(){
@@ -3589,8 +3654,6 @@ precision: {
    WWII CAUSAL ATLAS — APP LOGIC
    Depends on data.js (ACTS, THEATERS, events, links, connectors, icons)
 ============================================================ */
-applyLocale();   // merge the active language over the English data before rendering
-
 const eventById = Object.fromEntries(events.map(e => [e.id, e]));
 const linksData = links.map(l => ({...l}));
 
@@ -3628,9 +3691,33 @@ function sourcesHTML(eventId){
 }
 
 /* ================= RENDER: WATCH MODE (all reels, continuous scroll) ================= */
-const reel = document.getElementById('reel');
+function toRoman(n){
+  return ['','I','II','III','IV','V','VI'][n] || String(n);
+}
 
-ACTS.forEach((act, actIdx) => {
+const reel = document.getElementById('reel');
+const navActLabel = document.getElementById('navActLabel');
+
+// reveal-on-scroll for events and connector pills
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+}, {threshold:0.22});
+// nav label follows the current reel while scrolling
+const labelObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting){
+      const actN = Number(entry.target.dataset.act);
+      const act = ACTS.find(a => a.n === actN);
+      if (act) navActLabel.textContent = t('nav.reel', {roman: toRoman(actN), title: act.title});
+    }
+  });
+}, {threshold:0.5});
+
+// Rebuilds the whole reel. Called on boot and again whenever the language
+// changes, so switching re-renders in place instead of reloading the page.
+function renderWatch(){
+  reel.innerHTML = '';
+  ACTS.forEach((act, actIdx) => {
   const actEvents = events.filter(e => e.act === act.n);
 
   const hero = document.createElement('header');
@@ -3712,10 +3799,6 @@ recap.innerHTML = `
 `;
 reel.appendChild(recap);
 
-function toRoman(n){
-  return ['','I','II','III','IV','V','VI'][n] || String(n);
-}
-
 document.querySelectorAll('.read-more-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const target = document.getElementById(btn.dataset.target);
@@ -3732,23 +3815,9 @@ document.querySelectorAll('.view-network-btn').forEach(btn => {
 });
 document.getElementById('toExploreCta').addEventListener('click', () => setMode('explore'));
 
-const io = new IntersectionObserver((entries) => {
-  entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
-}, {threshold:0.22});
 document.querySelectorAll('.event, .link-connector').forEach(el => io.observe(el));
-
-// nav label follows current reel while scrolling
-const navActLabel = document.getElementById('navActLabel');
-const labelObserver = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting){
-      const actN = Number(entry.target.dataset.act);
-      const act = ACTS.find(a => a.n === actN);
-      if (act) navActLabel.textContent = t('nav.reel', {roman: toRoman(actN), title: act.title});
-    }
-  });
-}, {threshold:0.5});
-document.querySelectorAll('.hero').forEach(el => labelObserver.observe(el));
+  document.querySelectorAll('.hero').forEach(el => labelObserver.observe(el));
+}
 
 const progressFill = document.getElementById('progressFill');
 window.addEventListener('scroll', () => {
@@ -3800,7 +3869,11 @@ function renderTheaterList(){
 }
 renderTheaterList();
 
-document.getElementById('ex-legend').innerHTML = ACTS.map(a => t('ex.legendReel', {roman: toRoman(a.n), title: a.title, years: a.years})).join('<br>');
+function renderLegend(){
+  document.getElementById('ex-legend').innerHTML =
+    ACTS.map(a => t('ex.legendReel', {roman: toRoman(a.n), title: a.title, years: a.years})).join('<br>');
+}
+renderLegend();
 
 document.getElementById('reset-btn').onclick = () => {
   state.activeTheaters = new Set(Object.keys(THEATERS));
@@ -3810,16 +3883,16 @@ document.getElementById('reset-btn').onclick = () => {
 };
 document.getElementById('search').oninput = (e) => { state.search = e.target.value.trim().toLowerCase(); updateVisibility(); };
 
-const LAYOUT_HINT = {map: t('hint.map'), network: t('hint.network')};
+const layoutHint = () => ({map: t('hint.map'), network: t('hint.network')});
 document.querySelectorAll('.layout-toggle button').forEach(btn => {
   btn.addEventListener('click', () => {
     layout = btn.dataset.layout;
-    document.getElementById('layoutHint').textContent = LAYOUT_HINT[layout];
+    document.getElementById('layoutHint').textContent = layoutHint()[layout];
     applyLayout();
     if (state.selected) selectEvent(state.selected);
   });
 });
-document.getElementById('layoutHint').textContent = LAYOUT_HINT.map;
+document.getElementById('layoutHint').textContent = layoutHint().map;
 
 /* ================= EXPLORE MODE: GRAPH ================= */
 let svg, gRoot, simulation, nodesData, linkSel, nodeSel, labelSel;
@@ -4051,6 +4124,21 @@ function updateVisibility(){
   linkSel.classed('link-dim', d => !(visibleIds.has(d.source.id) && visibleIds.has(d.target.id)));
 }
 
+/* Re-labels everything in Explore mode after a language change. The graph
+   itself (positions, links, selection) is untouched — only text is replaced. */
+function refreshExploreText(){
+  renderLegend();
+  renderTheaterList();
+  document.getElementById('layoutHint').textContent = layoutHint()[layout];
+  if (labelSel) labelSel.text(d => {
+    const e = eventById[d.id];
+    return e.title.length > 26 ? e.title.slice(0,25) + '…' : e.title;
+  });
+  if (nodeSel) nodeSel.select('title').text(d => eventById[d.id].title);
+  if (svg) renderTimeline();
+  selectEvent(state.selected);
+}
+
 /* ================= EXPLORE MODE: DETAIL PANEL ================= */
 function selectEvent(id){
   state.selected = id;
@@ -4121,6 +4209,20 @@ function renderTimeline(){
 
 window.addEventListener('resize', () => {
   if (document.body.classList.contains('mode-explore')){ resizeGraph(); renderTimeline(); }
+});
+
+/* ================= BOOT =================
+   Fetch only the active language pack, then build the page. Registers
+   rerenderAll() so the switcher can change language in place, with no reload. */
+window.rerenderAll = function(){
+  renderWatch();
+  if (graphInitialized) refreshExploreText();
+  applyStaticStrings();
+};
+
+loadLocale(LANG).then(() => {
+  applyLocale();
+  renderWatch();
 });
 
 </script>
