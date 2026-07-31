@@ -38,6 +38,7 @@ const LANGS = [
   {code:'es',      label:'Español',  short:'ES', cjk:false},
   {code:'fr',      label:'Français', short:'FR', cjk:false},
   {code:'de',      label:'Deutsch',  short:'DE', cjk:false},
+  {code:'vi',      label:'Tiếng Việt', short:'VI', cjk:false},
   {code:'zh-Hant', label:'繁體中文',  short:'中', cjk:true},
 ];
 

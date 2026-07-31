@@ -5,6 +5,15 @@
 const eventById = Object.fromEntries(events.map(e => [e.id, e]));
 const linksData = links.map(l => ({...l}));
 
+// linksData is a parse-time copy, and d3 rewrites its source/target into node
+// objects, so it can't simply be rebuilt. Re-pull just the labels whenever the
+// language changes. Same index order as links, by construction above.
+function syncDerivedFromLocale(){
+  linksData.forEach((ld, i) => { ld.label = links[i].label; });
+  if (typeof renderTheaterList === 'function') renderTheaterList();
+  if (typeof renderLegend === 'function') renderLegend();
+}
+
 /* ================= SOURCES: shared renderer for both modes ================= */
 const kindLabel = kind => t('src.kind.' + kind);
 
@@ -563,6 +572,7 @@ window.addEventListener('resize', () => {
    Fetch only the active language pack, then build the page. Registers
    rerenderAll() so the switcher can change language in place, with no reload. */
 window.rerenderAll = function(){
+  syncDerivedFromLocale();
   renderWatch();
   if (graphInitialized) refreshExploreText();
   applyStaticStrings();
@@ -570,5 +580,6 @@ window.rerenderAll = function(){
 
 loadLocale(LANG).then(() => {
   applyLocale();
+  syncDerivedFromLocale();
   renderWatch();
 });

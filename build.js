@@ -253,7 +253,7 @@ const TAGS = ['js/data.js', 'js/sources.js', 'js/geo.js', 'js/world.js',
 // on-demand loading would have nothing to load from.
 const FILES = ['js/data.js', 'js/sources.js', 'js/geo.js', 'js/world.js',
                'js/i18n/base.js', 'js/i18n/es.js', 'js/i18n/fr.js',
-               'js/i18n/de.js', 'js/i18n/zh-Hant.js', 'js/app.js'];
+               'js/i18n/de.js', 'js/i18n/vi.js', 'js/i18n/zh-Hant.js', 'js/app.js'];
 const SCRIPTS = new RegExp(TAGS.map(f =>
   '<script src="' + f.replace(/[/.]/g, m => '\\' + m) + '"><\\/script>').join('\\s*'));
 

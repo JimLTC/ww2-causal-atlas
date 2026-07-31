@@ -61,6 +61,17 @@
   body.has-tnotice .ex-hint{ bottom:72px; }
   @media (max-width:720px){ .tnotice-in{ flex-wrap:wrap; gap:9px; } .tnotice p{ flex-basis:100%; } }
 
+  /* ---- Vietnamese: stacked diacritics need headroom ----
+     Bebas Neue covers Vietnamese, but the display line-height (0.95) clips
+     marks like Ồ and Ế, which then collide with the line above. Loosen the
+     leading only for this language rather than changing it for everyone. */
+  html[lang="vi"] .hero h1{ line-height:1.22; padding-top:.12em; }
+  html[lang="vi"] .event-copy h2{ line-height:1.28; }
+  html[lang="vi"] .recap-title{ line-height:1.24; }
+  html[lang="vi"] .reel-transition h4{ line-height:1.3; }
+  html[lang="vi"] .reel-label,
+  html[lang="vi"] .act-intro .eyebrow{ line-height:1.6; }
+
   /* ---- CJK: Bebas Neue has no Han glyphs, so swap the display face ---- */
   html[lang^="zh"] body,
   html[lang^="zh"] .act-intro p,
