@@ -17,9 +17,14 @@
    Adding a language
    -----------------
    1. Copy js/i18n/es.js, translate the strings, register under a new key.
-   2. Add the <script> tag in index.html and the code to LANGS below.
-   3. Add it to LOCALES in build.js so its references page is generated.
+   2. Add an entry to LANGS below. No <script> tag: packs are fetched on
+      demand by loadLocale(), so index.html never references them.
+   3. Add the file to FILES in build.js, so the standalone single-file build
+      inlines it (that build has no server to fetch packs from).
    4. Run `node build.js`.
+   5. Look at it. String counts can be complete while the type is still wrong —
+      Vietnamese needed extra leading for its stacked diacritics, and CJK needs
+      a different display face entirely.
 
    Translation status
    ------------------

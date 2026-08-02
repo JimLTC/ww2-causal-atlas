@@ -6,7 +6,7 @@ An interactive documentary of the Second World War. Watch it unfold reel by reel
 newsreel, or open the whole war as a map you can pull apart — 54 events, 1919 to 1945,
 and the 61 links tying each one to what came next.
 
-Nothing to install. It runs in a browser.
+Nothing to install. It runs in a browser, in six languages.
 
 ---
 
@@ -33,6 +33,30 @@ the map fill up year by year.
 
 The two modes are linked both ways — jump from a narrated moment to its node in the graph,
 or from any node back to the reel it belongs to.
+
+---
+
+## Read it in your language
+
+Pick from the dropdown in the top bar, or go straight there:
+
+| | | |
+|---|---|---|
+| [English](https://jimltc.github.io/ww2-causal-atlas/) | [Español](https://jimltc.github.io/ww2-causal-atlas/?lang=es) | [Français](https://jimltc.github.io/ww2-causal-atlas/?lang=fr) |
+| [Deutsch](https://jimltc.github.io/ww2-causal-atlas/?lang=de) | [Tiếng Việt](https://jimltc.github.io/ww2-causal-atlas/?lang=vi) | [繁體中文](https://jimltc.github.io/ww2-causal-atlas/?lang=zh-Hant) |
+
+Everything translates — all 54 events, the reel framings, the causal-link labels, the
+correction notes and the map's place names. Switching is instant and doesn't reload the page.
+Only the language you're actually reading gets downloaded, so the site is no heavier with six
+languages than it was with one.
+
+**The five translations are machine-drafted and have not been checked by a native speaker.**
+Every non-English version says so on screen, with one click back to the English. The
+historical text may contain errors the English doesn't.
+
+What *can't* differ between languages: dates, coordinates, source URLs and the causal links
+themselves live in one shared place and are never duplicated into a translation file. So no
+version of this atlas can disagree with another about when something happened or where.
 
 ---
 
@@ -98,7 +122,10 @@ misrepresent every other.
 
 ## Known limits
 
-- **English only.** No translations yet.
+- **The translations are unreviewed.** English is the only version a human has checked line
+  by line. The other five are machine-drafted and labelled as such in the interface.
+- **The references page is English-only.** Citations inside the atlas are translated, but
+  clicking through to the full bibliography lands you in English whatever language you're in.
 - **Needs a live connection.** D3 and the fonts load from a CDN. If those are blocked, the
   Explore graph won't render.
 - **54 events is a selection, not a survey.** The Holocaust, the war in China after 1937, the
@@ -110,12 +137,16 @@ misrepresent every other.
 ## Under the hood
 
 Plain HTML, CSS and JavaScript with [D3](https://d3js.org/) for the graph and map. No
-framework, no build step needed to view it — clone the repo and open `index.html`.
-The basemap is [Natural Earth](https://www.naturalearthdata.com/) 1:110m land, simplified
-and embedded.
+framework, no build step needed to view it — clone the repo and open `index.html`, straight
+off disk if you like. The basemap is [Natural Earth](https://www.naturalearthdata.com/)
+1:110m land, simplified and embedded.
 
-`ww2-causal-atlas-preview.html` is the entire project inlined into a single file, if you
-want to open it straight off disk.
+Each language is a separate pack fetched only when you choose it. A visitor downloads about
+68 KB regardless of how many languages the atlas offers, which is what makes adding more of
+them cheap.
+
+`ww2-causal-atlas-preview.html` is the entire project — every language included — inlined
+into a single 411 KB file, for handing someone one file instead of a folder.
 
 Reuse terms aren't settled yet, so there's no licence on this repo — if you'd like to build
 on the events, links or citations, please open an issue and ask.
